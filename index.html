@@ -16,18 +16,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <script>
-    window.require = function(moduleName) {
-      if (moduleName === 'react') return window.React;
-      if (moduleName === 'react/jsx-runtime') return { 
-        jsx: window.React.createElement, 
-        jsxs: window.React.createElement, 
-        Fragment: window.React.Fragment 
-      };
-      return null;
-    };
-  </script>
-
   <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.6/babel.min.js"></script>
@@ -85,10 +73,7 @@
 <div id="app-main" class="app-section">
     <nav class="navbar-custom">
       <div class="container-fluid d-flex justify-content-between align-items-center">
-        <div class="brand-logo">
-            <i class="bi bi-people-fill"></i> HR Portal 
-            <span class="badge bg-success fs-6 ms-2">LIVE DB</span>
-        </div>
+        <div class="brand-logo"><i class="bi bi-people-fill"></i> HR Portal <span class="badge bg-success fs-6 ms-2">LIVE DB</span></div>
         <div class="text-secondary fw-bold" id="clock">00:00</div>
       </div>
     </nav>
@@ -228,7 +213,7 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    // 🟢 ลิงก์ API เชื่อมต่อกับฐานข้อมูลจริง
+    // 🟢 ลิงก์ API ของคุณ
     const API_URL = "https://script.google.com/macros/s/AKfycbwbvliaTBJRtASXUZP-z5K4XV4cj_taRR5Y8yg99PyL-kSR5v--FD2f2pdpqxVHHCUvlQ/exec"; 
 
     function switchApp(appType) {
@@ -370,7 +355,7 @@
     const { useState, useMemo, useEffect } = window.React;
     const { createRoot } = window.ReactDOM;
     
-    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons ที่อยู่ในเครื่องอยู่แล้ว
+    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons
     const Icon = ({ name, size = 16, className = '', title = '' }) => {
       return React.createElement('i', {
         className: `bi bi-${name} ${className} inline-block`,
@@ -414,7 +399,6 @@
       MapIcon: (p) => React.createElement(Icon, { name: "map-fill", ...p }),
     };
 
-    // 🟢 ลิงก์ API ของจริง
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbvliaTBJRtASXUZP-z5K4XV4cj_taRR5Y8yg99PyL-kSR5v--FD2f2pdpqxVHHCUvlQ/exec"; 
 
     const STATUS_COLORS = { 'รอพิจารณาประวัติ': '#06B6D4', 'ผ่านสัมภาษณ์': '#10B981', 'รอผลสัมภาษณ์': '#3B82F6', 'ติดต่อผู้สมัครไม่ได้': '#64748B', 'อยู่ระหว่างนัดสัมภาษณ์': '#F59E0B', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด': '#EF4444', 'ไม่ผ่านสัมภาษณ์': '#DC2626', 'ไม่มีตำแหน่งงานว่าง': '#94A3B8', 'สำรอง/เก็บไว้พิจารณา': '#8B5CF6', 'ตรวจสุขภาพ': '#06B6D4', 'รอเริ่มงาน': '#0EA5E9', 'อื่นๆ': '#F97316' };
@@ -540,9 +524,16 @@
           let loadedApps = []; let loadedVacs = [];
           if (data.applicants) loadedApps = data.applicants.map(a => ({...a, id: String(a.id), branchCode: String(a.branchCode).padStart(3, '0')}));
           if (data.vacancies) loadedVacs = data.vacancies.map(v => ({...v, id: String(v.id), branchCode: String(v.branchCode).padStart(3, '0')}));
-          setApplicants(loadedApps); setVacancies(loadedVacs);
+          
+          setApplicants(loadedApps); 
+          setVacancies(loadedVacs);
+          
+          // เซฟลงเครื่องสำรองไว้
+          const safeAppsForLocal = loadedApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !String(app.resumeBase64).startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
+          localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal));
+          localStorage.setItem('hr_vacancies', JSON.stringify(loadedVacs));
           return data;
-        } catch (error) { console.error('Fetch error:', error); throw error; }
+        } catch (error) { throw error; }
       };
 
       useEffect(() => {
@@ -553,14 +544,46 @@
             const data = await fetchFreshData(); 
             if (data) {
               setCloudStatus('connected');
-              if (data.branches && data.branches.length > 0) { setAppBranches(data.branches.map(b => ({...b, code: String(b.code).padStart(3, '0'), name: String(b.name).trim() === 'Ma' ? 'สาขาศาลายา' : String(b.name).trim()}))); }
-              if (data.tas && data.tas.length > 0) setAppTAs(data.tas.map(t => String(t.name || t)));
-              if (data.positions && data.positions.length > 0) setAppPositions(normalizePositions(data.positions));
+              if (data.branches && data.branches.length > 0) { 
+                 const b = data.branches.map(b => ({...b, code: String(b.code).padStart(3, '0'), name: String(b.name).trim() === 'Ma' ? 'สาขาศาลายา' : String(b.name).trim()}));
+                 setAppBranches(b);
+                 localStorage.setItem('hr_branches', JSON.stringify(b));
+              }
+              if (data.tas && data.tas.length > 0) {
+                 const t = data.tas.map(t => String(t.name || t));
+                 setAppTAs(t);
+                 localStorage.setItem('hr_tas', JSON.stringify(t));
+              }
+              if (data.positions && data.positions.length > 0) {
+                 const p = normalizePositions(data.positions);
+                 setAppPositions(p);
+                 localStorage.setItem('hr_positions', JSON.stringify(p));
+              }
               if (data.statuses && data.statuses.length > 0) setAppStatuses(data.statuses);
               if (data.vacancyStatuses && data.vacancyStatuses.length > 0) setAppVacancyStatuses(data.vacancyStatuses);
             }
           } catch (e) {
             setCloudStatus('error');
+            // 🟢 เมื่อออฟไลน์ จะดึงข้อมูลล่าสุดจากในเครื่องมาแสดงให้ไม่พัง
+            let loadedApps = []; let loadedVacs = [];
+            try { loadedApps = JSON.parse(localStorage.getItem('hr_applicants')) || []; } catch(e){}
+            try { loadedVacs = JSON.parse(localStorage.getItem('hr_vacancies')) || []; } catch(e){}
+            setApplicants(loadedApps); setVacancies(loadedVacs);
+            
+            let localBranches = [];
+            try { localBranches = JSON.parse(localStorage.getItem('hr_branches')); } catch(e){}
+            if (localBranches && localBranches.length > 0) setAppBranches(localBranches);
+            else setAppBranches([{ code: "103", name: "Nan", area: "Area 1" }, { code: "70", name: "Sukhothai", area: "Area 1" }, { code: "115", name: "Bang Bua Thong", area: "Area 2" }]);
+
+            let localTas = [];
+            try { localTas = JSON.parse(localStorage.getItem('hr_tas')); } catch(e){}
+            if (localTas && localTas.length > 0) setAppTAs(localTas);
+            else setAppTAs(["Recruiter 1", "Recruiter 2", "TA_Admin"]);
+
+            let localPos = [];
+            try { localPos = JSON.parse(localStorage.getItem('hr_positions')); } catch(e){}
+            if (localPos && localPos.length > 0) setAppPositions(localPos);
+            else setAppPositions([{ position: "พนักงานขาย", recruit: "", area: "" }]);
           }
           setIsLoading(false);
         };
@@ -583,8 +606,10 @@
       };
 
       const syncToCloud = async (newApps, newVacs, forceSync = false) => {
+        const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
+        try { localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal)); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs)); } catch (err) {}
         const isSafeToSync = forceSync || cloudStatus === 'connected' || cloudStatus === 'syncing';
-        if (!isSafeToSync) { alert('⚠️ ระบบเชื่อมต่อฐานข้อมูลไม่ได้'); return; }
+        if (!isSafeToSync) { alert('⚠️ คุณอยู่ใน "โหมดออฟไลน์" ระบบจะบันทึกในเครื่องเท่านั้น'); return; }
         if (GOOGLE_SCRIPT_URL) {
           try {
             setCloudStatus('syncing');
@@ -611,17 +636,19 @@
         if (!selectedTA || !addingApplicantFor) return;
         if (formData.status === 'รอเริ่มงาน' && !formData.startDate) { alert('กรุณาระบุวันที่เริ่มงาน'); return; }
         setIsSaving(true);
-        const newRecord = { id: "FT_" + Date.now().toString() + '_' + Math.floor(Math.random() * 1000), ta: selectedTA, branchCode: String(addingApplicantFor.branchCode).padStart(3, '0'), branchName: addingApplicantFor.branchName, position: addingApplicantFor.position, ...formData, timestamp: getConsistentTimestamp(), updatedAt: Date.now() };
-        const newApps = [...applicants, newRecord]; setApplicants(newApps);
+        const newRecord = { id: "FT_" + Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), ta: selectedTA, branchCode: String(addingApplicantFor.branchCode).padStart(3, '0'), branchName: addingApplicantFor.branchName, position: addingApplicantFor.position, ...formData, timestamp: getConsistentTimestamp(), updatedAt: Date.now() };
+        const newApps = [newRecord, ...applicants]; setApplicants(newApps);
         setFormData({ name: '', phone: '', source: 'Walk-in at Store', status: '', comment: '', startDate: '', resumeName: '', resumeBase64: '' }); setAddingApplicantFor(null); 
         await syncToCloud(newApps, vacancies); try { await fetchFreshData(); } catch (err) {} setIsSaving(false); 
       };
 
       const deleteApplicant = async (id) => {
         if (window.confirm('ลบข้อมูลผู้สมัครรายนี้?')) {
+          const appToDelete = applicants.find(a => String(a.id) === String(id));
           const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); 
+          const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 })); localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal));
           if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') {
-            try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Applicants', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); }
+            try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Applicants', recordId: id, fileUrl: appToDelete ? appToDelete.resumeBase64 : null }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); }
           }
         }
       };
@@ -648,12 +675,12 @@
         if (vacancyForm.manualStatus === 'Promote&Transfer Done' && !vacancyForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล (Effective Date)'); return; }
         const branch = appBranches.find(b => String(b.code) === String(vacancyForm.branchCode)); if (!branch) { alert('ไม่พบข้อมูลสาขาในระบบ'); return; }
         const newVacancy = { id: "VAC_" + Date.now().toString(), area: branch.area, branchCode: String(branch.code).padStart(3, '0'), branchName: branch.name, position: vacancyForm.position, manualStatus: vacancyForm.manualStatus, effectiveDate: vacancyForm.effectiveDate || '', createdAt: Date.now(), timestamp: getConsistentTimestamp() };
-        const newVacs = [...vacancies, newVacancy]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
+        const newVacs = [newVacancy, ...vacancies]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
       };
 
       const deleteVacancy = async (id) => {
         if (window.confirm('ลบตำแหน่งงานนี้?')) {
-          const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); 
+          const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs));
           if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') { try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Vacancies', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); } }
         }
       };
@@ -683,9 +710,9 @@
         } catch (error) { alert('เกิดข้อผิดพลาดในการ Export: ' + error.message); }
       };
 
-      const handleImportCSV = (e) => { alert('ฟังก์ชันอัปเดตผ่านไฟล์ CSV ถูกปิดใช้งานชั่วคราว'); e.target.value = ''; };
-      const handleImportPositionCSV = (e) => { alert('ฟังก์ชันอัปเดตผ่านไฟล์ CSV ถูกปิดใช้งานชั่วคราว'); e.target.value = ''; };
-      const handleImportTACSV = (e) => { alert('ฟังก์ชันอัปเดตผ่านไฟล์ CSV ถูกปิดใช้งานชั่วคราว'); e.target.value = ''; };
+      const handleImportCSV = (e) => { alert('ฟังก์ชันนี้จำเป็นต้องอัปเดตผ่าน Google Sheets โดยตรง'); e.target.value = ''; };
+      const handleImportPositionCSV = (e) => { alert('ฟังก์ชันนี้จำเป็นต้องอัปเดตผ่าน Google Sheets โดยตรง'); e.target.value = ''; };
+      const handleImportTACSV = (e) => { alert('ฟังก์ชันนี้จำเป็นต้องอัปเดตผ่าน Google Sheets โดยตรง'); e.target.value = ''; };
 
       const availableBranchesForAreas = useMemo(() => { let branches = appBranches.filter(b => selectedAreas.includes(b.area)); return [...branches].sort((a, b) => { const codeA = parseInt(String(a.code).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.code).replace(/\D/g, ''), 10) || 0; return codeA - codeB; }); }, [appBranches, selectedAreas]);
       const filteredVacancies = useMemo(() => { return [...vacancies].filter(v => { const areaMatch = selectedAreas.length === 0 || selectedAreas.includes(v.area); const positionMatch = vacancyPositionFilter === '' || v.position === vacancyPositionFilter; const branchMatch = vacancyBranchFilter === '' || String(v.branchCode) === String(vacancyBranchFilter); return areaMatch && positionMatch && branchMatch; }).map(v => ({ ...v, insight: getVacancyInsights(v) })).sort((a, b) => { const numA = parseInt(String(a.area).replace(/\D/g, '')) || 0; const numB = parseInt(String(b.area).replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; if (a.branchName !== b.branchName) return String(a.branchName).localeCompare(String(b.branchName), 'th'); return String(a.position).localeCompare(String(b.position), 'th'); }); }, [vacancies, selectedAreas, vacancyPositionFilter, vacancyBranchFilter, applicants]);
@@ -700,7 +727,17 @@
       const dashboardData = useMemo(() => { let apps = dashboardTA === 'ALL' ? applicants : applicants.filter(app => String(app.ta) === String(dashboardTA)); if (dashboardSelectedAreas.length > 0) { apps = apps.filter(a => { const b = appBranches.find(br => String(br.code) === String(a.branchCode)); return b && dashboardSelectedAreas.includes(b.area); }); } if (dashboardBranchFilter) { apps = apps.filter(a => String(a.branchCode) === String(dashboardBranchFilter)); } if (dashboardPositionFilter) { apps = apps.filter(a => a.position === dashboardPositionFilter); } return apps; }, [applicants, dashboardTA, dashboardSelectedAreas, dashboardBranchFilter, dashboardPositionFilter, appBranches]);
       const applicantStats = useMemo(() => { let total = dashboardData.length; let hired = 0, pending = 0, rejected = 0; dashboardData.forEach(a => { if (a.status === 'ผ่านสัมภาษณ์' || (a.status === 'รอเริ่มงาน' && a.startDate && new Date().setHours(0,0,0,0) >= new Date(a.startDate).setHours(0,0,0,0))) { hired++; } else if (['รอพิจารณาประวัติ', 'รอผลสัมภาษณ์', 'อยู่ระหว่างนัดสัมภาษณ์', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ'].includes(a.status) || (a.status === 'รอเริ่มงาน' && (!a.startDate || new Date().setHours(0,0,0,0) < new Date(a.startDate).setHours(0,0,0,0)))) { pending++; } else { rejected++; } }); return { total, hired, pending, rejected }; }, [dashboardData]);
 
-      const sendLineSummary = async () => { alert("ส่งแจ้งเตือน LINE สำเร็จ (จำลองการส่ง)"); };
+      const sendLineSummary = async () => {
+        if (!lineToken || !lineTargetId) { alert('กรุณาตั้งค่า LINE Channel Access Token และ Target ID ในเมนูตั้งค่า'); setShowSettings(true); return; }
+        const wantImage = window.confirm('ต้องการแนบ "รูปภาพหน้าจอ Dashboard" ไปพร้อมกับข้อความด้วยหรือไม่?\n\n[OK] = ส่งทั้งข้อความและรูปภาพ\n[Cancel] = ส่งเฉพาะข้อความสรุป');
+        setIsSendingLine(true);
+        const summaryMsg = `\n📊 สรุปรายงานการสรรหาบุคลากร\n👤 ผู้ดูแล: ${dashboardTA}\n-- ตำแหน่งงาน (Vacancies) --\n📍 เปิดรับทั้งหมด: ${vacancyStats.total} อัตรา\n🟢 ได้คนแล้ว: ${vacancyStats.fulfilled} อัตรา (${vacancyStats.progress}%)\n🔴 ว่าง: ${vacancyStats.vacant} อัตรา\n🟣 Promote: ${vacancyStats.promote} อัตรา\n⚪ Hold: ${vacancyStats.hold} อัตรา\n\n-- ข้อมูลผู้สมัคร (Applicants) --\n👥 ผู้สมัครรวม: ${applicantStats.total} คน\n✅ สำเร็จ/รอเริ่มงาน: ${applicantStats.hired} คน\n⏳ รอดำเนินการ: ${applicantStats.pending} คน\n❌ ไม่ผ่าน/ปฏิเสธ: ${applicantStats.rejected} คน\n---\n🕒 อัปเดตล่าสุด: ${getConsistentTimestamp()}`;
+        let imageBase64 = null;
+        if (wantImage) {
+          try { const element = document.getElementById('dashboard-export-area'); if (element && window.html2canvas) { const buttonsToHide = document.querySelectorAll('.hide-on-pdf'); buttonsToHide.forEach(btn => btn.style.display = 'none'); const canvas = await window.html2canvas(element, { scale: 4, useCORS: true, backgroundColor: '#ffffff' }); imageBase64 = canvas.toDataURL('image/png'); buttonsToHide.forEach(btn => btn.style.display = ''); } } catch(e) { alert('ไม่สามารถถ่ายภาพหน้าจอได้ ส่งเฉพาะข้อความแทน'); }
+        }
+        try { await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'sendLineNotify', lineToken: lineToken, targetId: lineTargetId, message: summaryMsg, imageBase64: imageBase64 }) }); setTimeout(() => { alert('ส่งคำสั่งแจ้งเตือนไปยัง LINE แล้ว!'); setIsSendingLine(false); }, 1500); } catch (error) { alert('เกิดข้อผิดพลาดในการส่ง LINE'); setIsSendingLine(false); }
+      };
 
       const dashboardGroupedData = useMemo(() => {
         let filteredVacs = dashboardVacancies; const areaMap = {};
@@ -756,7 +793,7 @@
             <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center transition-all">
               <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
                 <Icons.Loader2 size={48} className="text-blue-600"/>
-                <span className="font-bold text-slate-700 text-lg">กำลังซิงค์ข้อมูลกับ Google Sheets...</span>
+                <span className="font-bold text-slate-700 text-lg">กำลังโหลดฐานข้อมูล...</span>
               </div>
             </div>
           )}
@@ -941,7 +978,7 @@
                   );
                 })()}
 
-                {/* Modal เพิ่มผู้สมัครใหม่ (แบบ 2 คอลัมน์สอดคล้องกับหน้า Main) */}
+                {/* Modal เพิ่มผู้สมัครใหม่ */}
                 {addingApplicantFor && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
@@ -1363,12 +1400,12 @@
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-slate-500 font-medium flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 text-[10px]"><Icons.Phone size={10} className="mr-1"/>{a.phone}</p>
                             {a.resumeBase64 && a.resumeBase64 !== 'Uploaded' && !String(a.resumeBase64).startsWith('Error') && (
-                              <button onClick={(e) => handleViewResume(e, a.resumeBase64, a.resumeName)} className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                              <button onClick={(e) => handleViewResume(e, a.resumeBase64, a.resumeName)} className="text-[10px] font-bold text-blue-700 hover:text-white flex items-center bg-blue-50 hover:bg-blue-600 px-2 py-0.5 rounded-lg transition-all border border-blue-200 shadow-sm">
                                 <Icons.Eye size={10} className="mr-1" /> ดูเรซูเม่
                               </button>
                             )}
                             {a.resumeBase64 === 'Uploaded' && (
-                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
+                               <span className="text-[10px] font-bold text-slate-500 flex items-center bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
                                  <Icons.Paperclip size={10} className="mr-1 text-emerald-500" /> แนบไฟล์แล้ว
                                </span>
                             )}
@@ -1506,13 +1543,14 @@
       );
     }
     
+    // 🟢 ระบบดักจับ Error ป้องกันหน้าขาว
     try {
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     } catch (error) {
       document.getElementById('root').innerHTML = `
         <div style="padding: 2rem; background: #fee2e2; color: #b91c1c; border-radius: 1rem; margin: 2rem; font-family: sans-serif;">
-            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาด</h2>
+            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาดในระบบ</h2>
             <p style="margin-top: 1rem; font-weight: bold;">รายละเอียด Error:</p>
             <p>${error.toString()}</p>
         </div>
