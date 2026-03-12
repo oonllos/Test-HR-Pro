@@ -16,9 +16,21 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script>
+    window.require = function(moduleName) {
+      if (moduleName === 'react') return window.React;
+      if (moduleName === 'react/jsx-runtime') return { 
+        jsx: window.React.createElement, 
+        jsxs: window.React.createElement, 
+        Fragment: window.React.Fragment 
+      };
+      return null;
+    };
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.6/babel.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap');
@@ -75,7 +87,7 @@
       <div class="container-fluid d-flex justify-content-between align-items-center">
         <div class="brand-logo">
             <i class="bi bi-people-fill"></i> HR Portal 
-            <span class="badge bg-warning text-dark fs-6 ms-2">MOCK DB MODE</span>
+            <span class="badge bg-success fs-6 ms-2">LIVE DB</span>
         </div>
         <div class="text-secondary fw-bold" id="clock">00:00</div>
       </div>
@@ -205,7 +217,7 @@
     <div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">แก้ไขข้อมูล (FT)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="editForm" onsubmit="handleUpdate(event)"><input type="hidden" name="rowId" id="editRowId"><div class="row g-3 mb-3"><div class="col-md-6"><label>สถานะสัมภาษณ์</label><select class="form-select interview-status-select" name="interviewStatus" id="editIntStatus"></select></div><div class="col-md-6"><label>สถานะเริ่มงาน</label><select class="form-select start-status-select" name="startStatus" id="editStartStatus"></select></div><div class="col-12"><label>หมายเหตุ</label><textarea class="form-control" name="remark" id="editRemark"></textarea></div></div><button type="submit" class="btn btn-warning w-100">บันทึก</button></form></div></div></div></div>
     <div class="modal fade" id="editModalPT" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">แก้ไขข้อมูล (PT)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="editFormPT" onsubmit="handleUpdatePT(event)"><input type="hidden" name="rowId" id="editRowIdPT"><div class="row g-3 mb-3"><div class="col-md-4"><label>Find Temp</label><input type="number" class="form-control" name="ptFindTemp" id="editPtFindTemp"></div><div class="col-md-4"><label>Student</label><input type="number" class="form-control" name="ptStudent" id="editPtStudent"></div><div class="col-md-4"><label>Elderly</label><input type="number" class="form-control" name="ptElderly" id="editPtElderly"></div></div><button type="submit" class="btn btn-success w-100">บันทึก</button></form></div></div></div></div>
 
-    <div id="loading" class="loading-overlay"><div class="loader-content"><div class="spinner-border text-primary mb-3"></div><h5 class="fw-bold">กำลังประมวลผลจำลอง...</h5></div></div>
+    <div id="loading" class="loading-overlay"><div class="loader-content"><div class="spinner-border text-primary mb-3"></div><h5 class="fw-bold">กำลังประมวลผล...</h5></div></div>
 </div>
 
 <div id="app-pro" class="app-section active">
@@ -216,132 +228,8 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    const MOCK_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_vwj6Mr07U59dZvwMPy5XxAprRE-QRRQgod8zz1grwPMC5z24FnettJ8K0XHgqQJTfqOGy6FyT9mw/pub?gid=1702846553&single=true&output=csv";
-    window.mockDB = null;
-
-    async function initMockDB() {
-        if (window.mockDB) return window.mockDB;
-
-        const localData = localStorage.getItem('mock_db_data_v3');
-        if (localData) {
-            try { 
-                window.mockDB = JSON.parse(localData); 
-                return window.mockDB; 
-            } catch(e) {}
-        }
-        
-        document.getElementById('loading').style.display = 'block';
-        try {
-            const responseBuf = await fetch(MOCK_CSV_URL).then(res => res.arrayBuffer());
-            const wb = XLSX.read(responseBuf, {type: 'array'});
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: "" }); 
-            json.forEach((row, idx) => { row.rowId = idx + 1; });
-            window.mockDB = json;
-            localStorage.setItem('mock_db_data_v3', JSON.stringify(window.mockDB)); 
-        } catch (e) {
-            console.error("Mock DB Load Error:", e);
-            window.mockDB = [];
-        }
-        document.getElementById('loading').style.display = 'none';
-        return window.mockDB;
-    }
-    
-    function saveMockDB() {
-        localStorage.setItem('mock_db_data_v3', JSON.stringify(window.mockDB));
-    }
-
-    async function callAPI(actionName, dataPayload = {}) {
-        await initMockDB();
-        const rawData = window.mockDB;
-
-        if (actionName === 'getDropdowns') {
-            const stores = [...new Set(rawData.map(r => String(r.Store_No)))].filter(x=>x&&x!=='undefined');
-            const depts = [...new Set(rawData.map(r => String(r.Department)))].filter(x=>x&&x!=='undefined');
-            const companies = [...new Set(rawData.map(r => String(r.Company)))].filter(x=>x&&x!=='undefined');
-            const sources = [...new Set(rawData.map(r => String(r.Apply_Source)))].filter(x=>x&&x!=='undefined');
-            const intStatuses = [...new Set(rawData.map(r => String(r.Interview_Status)))].filter(x=>x&&x!=='undefined');
-            const startStatuses = [...new Set(rawData.map(r => String(r.Start_Status)))].filter(x=>x&&x!=='undefined');
-
-            const posMap = {};
-            rawData.forEach(r => {
-                if(r.Department && r.Position) {
-                    if(!posMap[r.Department]) posMap[r.Department] = new Set();
-                    posMap[r.Department].add(r.Position);
-                }
-            });
-            const formattedPosMap = {};
-            for(let key in posMap) formattedPosMap[key] = Array.from(posMap[key]);
-
-            return {
-                stores: stores.length ? stores : ["103", "70", "115"],
-                departments: depts.length ? depts : ["Picker", "Customer Service", "Bakery"],
-                companies: companies.length ? companies : ["ADC", "SML"],
-                sources: sources.length ? sources : ["Walk-in", "Facebook"],
-                interviewStatuses: intStatuses.length ? intStatuses : ["รอพิจารณาประวัติ", "ผ่านสัมภาษณ์"],
-                startStatuses: startStatuses.length ? startStatuses : ["รอเริ่มงาน", "มาเริ่มงาน"],
-                positionMap: formattedPosMap
-            };
-        }
-        
-        if (actionName === 'searchFT') {
-            const storeNo = dataPayload;
-            return rawData.filter(r => String(r.Store_No) === String(storeNo)).map(r => ({
-                rowId: r.rowId,
-                appDate: r.App_Date,
-                storeNo: r.Store_No,
-                candidateName: r.Candidate_Name,
-                phoneNo: r.Phone_No,
-                position: r.Position,
-                interviewStatus: r.Interview_Status,
-                startStatus: r.Start_Status,
-                remark: r.Remark
-            }));
-        }
-
-        if (actionName === 'searchPT') return []; 
-        if (actionName === 'exportData') return rawData; 
-
-        if (actionName === 'submitForm') {
-            const newRow = {
-                rowId: Date.now(),
-                App_Date: dataPayload.appDate,
-                Store_No: dataPayload.storeNo,
-                Candidate_Name: dataPayload.candidateName,
-                Phone_No: dataPayload.phoneNo,
-                Position: dataPayload.position,
-                Company: dataPayload.company,
-                Department: document.getElementById('addDeptSelect').value,
-                Apply_Source: dataPayload.applySource,
-                Interview_Date: dataPayload.interviewDate,
-                Interview_Status: dataPayload.interviewStatus,
-                Start_Date: dataPayload.startDate,
-                Start_Status: dataPayload.startStatus,
-                Remark: dataPayload.remark
-            };
-            window.mockDB.unshift(newRow); 
-            saveMockDB();
-            return { result: 'success' };
-        }
-
-        if (actionName === 'updateData') {
-             const row = window.mockDB.find(r => String(r.rowId) === String(dataPayload.rowId));
-             if(row) {
-                 row.Interview_Status = dataPayload.interviewStatus;
-                 row.Start_Status = dataPayload.startStatus;
-                 row.Remark = dataPayload.remark;
-                 saveMockDB();
-             }
-             return { result: 'success' };
-        }
-        
-        if (actionName === 'deleteData') {
-            window.mockDB = window.mockDB.filter(r => String(r.rowId) !== String(dataPayload.rowId));
-            saveMockDB();
-            return { result: 'success' };
-        }
-
-        return { result: 'success' };
-    }
+    // 🟢 ลิงก์ API เชื่อมต่อกับฐานข้อมูลจริง
+    const API_URL = "https://script.google.com/macros/s/AKfycbwbvliaTBJRtASXUZP-z5K4XV4cj_taRR5Y8yg99PyL-kSR5v--FD2f2pdpqxVHHCUvlQ/exec"; 
 
     function switchApp(appType) {
         if(appType === 'main') {
@@ -351,6 +239,14 @@
             document.getElementById('app-main').classList.remove('active'); document.getElementById('app-pro').classList.add('active');
             document.getElementById('btn-show-main').className = 'btn btn-outline-light fw-bold px-4 text-dark'; document.getElementById('btn-show-pro').className = 'btn btn-primary fw-bold px-4';
         }
+    }
+
+    async function callAPI(actionName, dataPayload = {}) {
+        try {
+            const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: actionName, payload: dataPayload }) });
+            const res = await response.json();
+            if (res.status === 'success') return res.data; else throw new Error(res.error || 'Unknown server error');
+        } catch (error) { throw error; }
     }
 
     setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}), 1000);
@@ -453,16 +349,16 @@
     }
 
     function handleCreate(e) { e.preventDefault(); submitData('addForm', 'submitForm', 'บันทึกสำเร็จ'); }
-    function handleCreatePT(e) { e.preventDefault(); submitData('addFormPT', 'submitForm', 'บันทึก PT สำเร็จ'); }
+    function handleCreatePT(e) { e.preventDefault(); submitData('addFormPT', 'submitPartTimeForm', 'บันทึก PT สำเร็จ'); }
     function handleUpdate(e) { e.preventDefault(); submitData('editForm', 'updateData', 'แก้ไขสำเร็จ', true, 'FT'); }
-    function handleUpdatePT(e) { e.preventDefault(); submitData('editFormPT', 'updateData', 'แก้ไข PT สำเร็จ', true, 'PT'); }
+    function handleUpdatePT(e) { e.preventDefault(); submitData('editFormPT', 'updatePartTimeData', 'แก้ไข PT สำเร็จ', true, 'PT'); }
 
     async function submitData(formId, actionName, msg, isUpdate = false, type = 'FT') {
       document.getElementById('loading').style.display = 'block'; const obj = {}; new FormData(document.getElementById(formId)).forEach((v, k) => obj[k] = v);
       try { await callAPI(actionName, obj); document.getElementById('loading').style.display = 'none'; showToast('success', msg); if(isUpdate) { if(formId === 'editFormPT') { bootstrap.Modal.getInstance(document.getElementById('editModalPT')).hide(); loadReportPT(); } else { bootstrap.Modal.getInstance(document.getElementById('editModal')).hide(); loadReportFT(); } } else { document.getElementById(formId).reset(); } } catch(err) { document.getElementById('loading').style.display = 'none'; }
     }
 
-    function handleDelete(rowId, name, type) { Swal.fire({ title: 'ลบข้อมูลจำลอง?', text: `ยืนยันการลบ: ${name}`, icon: 'warning', showCancelButton: true }).then(async (result) => { if (result.isConfirmed) { document.getElementById('loading').style.display = 'block'; try { await callAPI("deleteData", {rowId: rowId, type: type}); document.getElementById('loading').style.display = 'none'; showToast('success', 'ลบสำเร็จ'); if(type === 'FT') loadReportFT(); else loadReportPT(); } catch(err) { document.getElementById('loading').style.display = 'none'; } } }); }
+    function handleDelete(rowId, name, type) { Swal.fire({ title: 'ลบข้อมูล?', text: `ยืนยันการลบ: ${name}`, icon: 'warning', showCancelButton: true }).then(async (result) => { if (result.isConfirmed) { document.getElementById('loading').style.display = 'block'; try { await callAPI("deleteData", {rowId: rowId, type: type}); document.getElementById('loading').style.display = 'none'; showToast('success', 'ลบสำเร็จ'); if(type === 'FT') loadReportFT(); else loadReportPT(); } catch(err) { document.getElementById('loading').style.display = 'none'; } } }); }
 
     function openEditModal(data) { document.getElementById('editRowId').value = data.rowId; document.getElementById('editIntStatus').value = data.interviewStatus; document.getElementById('editStartStatus').value = data.startStatus; document.getElementById('editRemark').value = data.remark; new bootstrap.Modal(document.getElementById('editModal')).show(); }
     function openEditModalPT(data) { document.getElementById('editRowIdPT').value = data.rowId; document.getElementById('editPtFindTemp').value = data.ptFindTemp; document.getElementById('editPtStudent').value = data.ptStudent; document.getElementById('editPtElderly').value = data.ptElderly; new bootstrap.Modal(document.getElementById('editModalPT')).show(); }
@@ -470,11 +366,11 @@
     function formatDate(isoDate) { if(!isoDate) return "-"; const d = new Date(isoDate); if(isNaN(d.getTime())) return isoDate; return d.toLocaleDateString('en-GB'); }
 </script>
 
-<script type="text/babel">
+<script type="text/babel" data-presets="react,env">
     const { useState, useMemo, useEffect } = window.React;
     const { createRoot } = window.ReactDOM;
     
-    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons
+    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons ที่อยู่ในเครื่องอยู่แล้ว
     const Icon = ({ name, size = 16, className = '', title = '' }) => {
       return React.createElement('i', {
         className: `bi bi-${name} ${className} inline-block`,
@@ -517,6 +413,9 @@
       Database: (p) => React.createElement(Icon, { name: "database-fill", ...p }),
       MapIcon: (p) => React.createElement(Icon, { name: "map-fill", ...p }),
     };
+
+    // 🟢 ลิงก์ API ของจริง
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbvliaTBJRtASXUZP-z5K4XV4cj_taRR5Y8yg99PyL-kSR5v--FD2f2pdpqxVHHCUvlQ/exec"; 
 
     const STATUS_COLORS = { 'รอพิจารณาประวัติ': '#06B6D4', 'ผ่านสัมภาษณ์': '#10B981', 'รอผลสัมภาษณ์': '#3B82F6', 'ติดต่อผู้สมัครไม่ได้': '#64748B', 'อยู่ระหว่างนัดสัมภาษณ์': '#F59E0B', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด': '#EF4444', 'ไม่ผ่านสัมภาษณ์': '#DC2626', 'ไม่มีตำแหน่งงานว่าง': '#94A3B8', 'สำรอง/เก็บไว้พิจารณา': '#8B5CF6', 'ตรวจสุขภาพ': '#06B6D4', 'รอเริ่มงาน': '#0EA5E9', 'อื่นๆ': '#F97316' };
     const VACANCY_COLORS = { 'Vacant': '#F59E0B', 'Promote&Transfer': '#8B5CF6', 'Promote&Transfer Done': '#10B981', 'Hold': '#64748B', 'Closed': '#94A3B8', 'รอตรวจสุขภาพ': '#06B6D4', 'Waiting to Join': '#0EA5E9', 'Hired': '#10B981' };
@@ -634,67 +533,34 @@
       };
 
       const fetchFreshData = async () => {
-        await window.initMockDB();
-        const rawData = window.mockDB;
-        
-        const branchMap = {};
-        rawData.forEach(r => {
-            if(r.Store_No && !branchMap[r.Store_No]) {
-                const codeNum = parseInt(r.Store_No) || 0;
-                const mockArea = 'Area ' + ((codeNum % 4) + 1);
-                branchMap[r.Store_No] = { code: String(r.Store_No).padStart(3, '0'), name: r.Store_Name || 'สาขา ' + r.Store_No, area: mockArea };
-            }
-        });
-        const branches = Object.values(branchMap);
-
-        const positions = [...new Set(rawData.map(r => r.Position))].filter(x=>x&&x!=='undefined').map(p => ({ position: p, recruit: 'TA_Test', area: '' }));
-
-        const loadedApps = rawData.map(r => ({
-            id: String(r.rowId),
-            branchCode: String(r.Store_No).padStart(3, '0'),
-            branchName: r.Store_Name || 'สาขา ' + r.Store_No,
-            position: r.Position,
-            name: r.Candidate_Name,
-            phone: r.Phone_No,
-            source: r.Apply_Source,
-            status: (r.Start_Status && r.Start_Status !== 'undefined' && r.Start_Status !== "") ? r.Start_Status : ((r.Interview_Status && r.Interview_Status !== 'undefined' && r.Interview_Status !== "") ? r.Interview_Status : 'รอพิจารณาประวัติ'),
-            comment: r.Remark,
-            startDate: r.Start_Date,
-            ta: 'TA_Test',
-            timestamp: r.App_Date,
-            updatedAt: Date.now() - Math.floor(Math.random() * 100000)
-        }));
-
-        const data = {
-            branches: branches.length > 0 ? branches : [{ code: '001', name: 'สาขาทดสอบ', area: 'Area 1' }],
-            tas: ['TA_Test', 'TA_Admin'],
-            positions: positions.length > 0 ? positions : [{ position: 'พนักงานขาย', recruit: 'TA_Test', area: '' }],
-            statuses: ['รอพิจารณาประวัติ', 'ผ่านสัมภาษณ์', 'รอผลสัมภาษณ์', 'ติดต่อผู้สมัครไม่ได้', 'อยู่ระหว่างนัดสัมภาษณ์', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ', 'รอเริ่มงาน', 'อื่นๆ', 'มาเริ่มงาน', 'ไม่มาเริ่มงาน'],
-            vacancyStatuses: ['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed'],
-            applicants: loadedApps,
-            vacancies: JSON.parse(localStorage.getItem('hr_vacancies') || '[]')
-        };
-
-        setAppBranches(data.branches);
-        setAppTAs(data.tas);
-        setAppPositions(data.positions);
-        setAppStatuses(data.statuses);
-        setAppVacancyStatuses(data.vacancyStatuses);
-        setApplicants(data.applicants);
-        setVacancies(data.vacancies);
-        
-        return data;
+        if (!GOOGLE_SCRIPT_URL) return null;
+        try {
+          const res = await fetch(`${GOOGLE_SCRIPT_URL}?api=react_init&t=${new Date().getTime()}`);
+          const data = await res.json();
+          let loadedApps = []; let loadedVacs = [];
+          if (data.applicants) loadedApps = data.applicants.map(a => ({...a, id: String(a.id), branchCode: String(a.branchCode).padStart(3, '0')}));
+          if (data.vacancies) loadedVacs = data.vacancies.map(v => ({...v, id: String(v.id), branchCode: String(v.branchCode).padStart(3, '0')}));
+          setApplicants(loadedApps); setVacancies(loadedVacs);
+          return data;
+        } catch (error) { console.error('Fetch error:', error); throw error; }
       };
 
       useEffect(() => {
+        const normalizePositions = (positions) => { return positions.map(p => { if (typeof p === 'string') return { position: p, recruit: '', area: '' }; return { position: String(p.position || p.name || '').trim(), recruit: String(p.recruit || '').trim(), area: String(p.area || '').trim() }; }); };
         const initLoad = async () => {
           setIsLoading(true); setCloudStatus('loading');
           try {
-            await fetchFreshData(); 
-            setCloudStatus('connected');
+            const data = await fetchFreshData(); 
+            if (data) {
+              setCloudStatus('connected');
+              if (data.branches && data.branches.length > 0) { setAppBranches(data.branches.map(b => ({...b, code: String(b.code).padStart(3, '0'), name: String(b.name).trim() === 'Ma' ? 'สาขาศาลายา' : String(b.name).trim()}))); }
+              if (data.tas && data.tas.length > 0) setAppTAs(data.tas.map(t => String(t.name || t)));
+              if (data.positions && data.positions.length > 0) setAppPositions(normalizePositions(data.positions));
+              if (data.statuses && data.statuses.length > 0) setAppStatuses(data.statuses);
+              if (data.vacancyStatuses && data.vacancyStatuses.length > 0) setAppVacancyStatuses(data.vacancyStatuses);
+            }
           } catch (e) {
             setCloudStatus('error');
-            console.error(e);
           }
           setIsLoading(false);
         };
@@ -717,10 +583,15 @@
       };
 
       const syncToCloud = async (newApps, newVacs, forceSync = false) => {
-        const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
-        try { localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal)); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs)); } catch (err) {}
-        setCloudStatus('syncing');
-        setTimeout(() => setCloudStatus('connected'), 600);
+        const isSafeToSync = forceSync || cloudStatus === 'connected' || cloudStatus === 'syncing';
+        if (!isSafeToSync) { alert('⚠️ ระบบเชื่อมต่อฐานข้อมูลไม่ได้'); return; }
+        if (GOOGLE_SCRIPT_URL) {
+          try {
+            setCloudStatus('syncing');
+            await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'saveAll', applicants: newApps, vacancies: newVacs }) });
+            setTimeout(() => setCloudStatus('connected'), 1000);
+          } catch (error) { setCloudStatus('error'); throw error; }
+        }
       };
 
       const exportDashboardToPDF = () => {
@@ -740,15 +611,18 @@
         if (!selectedTA || !addingApplicantFor) return;
         if (formData.status === 'รอเริ่มงาน' && !formData.startDate) { alert('กรุณาระบุวันที่เริ่มงาน'); return; }
         setIsSaving(true);
-        const newRecord = { id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), ta: selectedTA, branchCode: String(addingApplicantFor.branchCode).padStart(3, '0'), branchName: addingApplicantFor.branchName, position: addingApplicantFor.position, ...formData, timestamp: getConsistentTimestamp(), updatedAt: Date.now() };
-        const newApps = [newRecord, ...applicants]; setApplicants(newApps);
+        const newRecord = { id: "FT_" + Date.now().toString() + '_' + Math.floor(Math.random() * 1000), ta: selectedTA, branchCode: String(addingApplicantFor.branchCode).padStart(3, '0'), branchName: addingApplicantFor.branchName, position: addingApplicantFor.position, ...formData, timestamp: getConsistentTimestamp(), updatedAt: Date.now() };
+        const newApps = [...applicants, newRecord]; setApplicants(newApps);
         setFormData({ name: '', phone: '', source: 'Walk-in at Store', status: '', comment: '', startDate: '', resumeName: '', resumeBase64: '' }); setAddingApplicantFor(null); 
-        await syncToCloud(newApps, vacancies); setIsSaving(false); 
+        await syncToCloud(newApps, vacancies); try { await fetchFreshData(); } catch (err) {} setIsSaving(false); 
       };
 
       const deleteApplicant = async (id) => {
         if (window.confirm('ลบข้อมูลผู้สมัครรายนี้?')) {
-          const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); await syncToCloud(newApps, vacancies);
+          const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); 
+          if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') {
+            try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Applicants', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); }
+          }
         }
       };
 
@@ -759,7 +633,7 @@
         setIsSaving(true);
         if (!['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(editAppForm.status)) editAppForm.comment = '';
         const newApps = applicants.map(a => String(a.id) === String(editAppId) ? { ...editAppForm, updatedAt: Date.now() } : a); setApplicants(newApps); 
-        await syncToCloud(newApps, vacancies); setIsSaving(false); setEditAppId(null);
+        await syncToCloud(newApps, vacancies); try { await fetchFreshData(); } catch (err) {} setIsSaving(false); setEditAppId(null);
       };
 
       const handleInlineStatusChange = (app, newStatus) => {
@@ -773,11 +647,17 @@
         e.preventDefault();
         if (vacancyForm.manualStatus === 'Promote&Transfer Done' && !vacancyForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล (Effective Date)'); return; }
         const branch = appBranches.find(b => String(b.code) === String(vacancyForm.branchCode)); if (!branch) { alert('ไม่พบข้อมูลสาขาในระบบ'); return; }
-        const newVacancy = { id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), area: branch.area, branchCode: String(branch.code).padStart(3, '0'), branchName: branch.name, position: vacancyForm.position, manualStatus: vacancyForm.manualStatus, effectiveDate: vacancyForm.effectiveDate || '', createdAt: Date.now(), timestamp: getConsistentTimestamp() };
-        const newVacs = [newVacancy, ...vacancies]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
+        const newVacancy = { id: "VAC_" + Date.now().toString(), area: branch.area, branchCode: String(branch.code).padStart(3, '0'), branchName: branch.name, position: vacancyForm.position, manualStatus: vacancyForm.manualStatus, effectiveDate: vacancyForm.effectiveDate || '', createdAt: Date.now(), timestamp: getConsistentTimestamp() };
+        const newVacs = [...vacancies, newVacancy]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
       };
 
-      const deleteVacancy = async (id) => { if (window.confirm('ลบตำแหน่งงานนี้?')) { const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); syncToCloud(applicants, newVacs); } };
+      const deleteVacancy = async (id) => {
+        if (window.confirm('ลบตำแหน่งงานนี้?')) {
+          const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); 
+          if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') { try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Vacancies', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); } }
+        }
+      };
+
       const startEditVac = (v) => { setEditVacId(v.id); setEditVacForm({ ...v }); };
       const saveEditVac = () => {
         if (editVacForm.manualStatus === 'Promote&Transfer Done' && !editVacForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล'); return; }
@@ -803,14 +683,9 @@
         } catch (error) { alert('เกิดข้อผิดพลาดในการ Export: ' + error.message); }
       };
 
-      const handleResetMockDB = () => {
-          if(window.confirm("ยืนยันการล้างข้อมูลทั้งหมด? \nระบบจะโหลดข้อมูลใหม่จากไฟล์ CSV ทันที")) {
-              localStorage.removeItem('mock_db_data_v3');
-              localStorage.removeItem('hr_applicants');
-              localStorage.removeItem('hr_vacancies');
-              window.location.reload();
-          }
-      };
+      const handleImportCSV = (e) => { alert('ฟังก์ชันอัปเดตผ่านไฟล์ CSV ถูกปิดใช้งานชั่วคราว'); e.target.value = ''; };
+      const handleImportPositionCSV = (e) => { alert('ฟังก์ชันอัปเดตผ่านไฟล์ CSV ถูกปิดใช้งานชั่วคราว'); e.target.value = ''; };
+      const handleImportTACSV = (e) => { alert('ฟังก์ชันอัปเดตผ่านไฟล์ CSV ถูกปิดใช้งานชั่วคราว'); e.target.value = ''; };
 
       const availableBranchesForAreas = useMemo(() => { let branches = appBranches.filter(b => selectedAreas.includes(b.area)); return [...branches].sort((a, b) => { const codeA = parseInt(String(a.code).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.code).replace(/\D/g, ''), 10) || 0; return codeA - codeB; }); }, [appBranches, selectedAreas]);
       const filteredVacancies = useMemo(() => { return [...vacancies].filter(v => { const areaMatch = selectedAreas.length === 0 || selectedAreas.includes(v.area); const positionMatch = vacancyPositionFilter === '' || v.position === vacancyPositionFilter; const branchMatch = vacancyBranchFilter === '' || String(v.branchCode) === String(vacancyBranchFilter); return areaMatch && positionMatch && branchMatch; }).map(v => ({ ...v, insight: getVacancyInsights(v) })).sort((a, b) => { const numA = parseInt(String(a.area).replace(/\D/g, '')) || 0; const numB = parseInt(String(b.area).replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; if (a.branchName !== b.branchName) return String(a.branchName).localeCompare(String(b.branchName), 'th'); return String(a.position).localeCompare(String(b.position), 'th'); }); }, [vacancies, selectedAreas, vacancyPositionFilter, vacancyBranchFilter, applicants]);
@@ -825,7 +700,7 @@
       const dashboardData = useMemo(() => { let apps = dashboardTA === 'ALL' ? applicants : applicants.filter(app => String(app.ta) === String(dashboardTA)); if (dashboardSelectedAreas.length > 0) { apps = apps.filter(a => { const b = appBranches.find(br => String(br.code) === String(a.branchCode)); return b && dashboardSelectedAreas.includes(b.area); }); } if (dashboardBranchFilter) { apps = apps.filter(a => String(a.branchCode) === String(dashboardBranchFilter)); } if (dashboardPositionFilter) { apps = apps.filter(a => a.position === dashboardPositionFilter); } return apps; }, [applicants, dashboardTA, dashboardSelectedAreas, dashboardBranchFilter, dashboardPositionFilter, appBranches]);
       const applicantStats = useMemo(() => { let total = dashboardData.length; let hired = 0, pending = 0, rejected = 0; dashboardData.forEach(a => { if (a.status === 'ผ่านสัมภาษณ์' || (a.status === 'รอเริ่มงาน' && a.startDate && new Date().setHours(0,0,0,0) >= new Date(a.startDate).setHours(0,0,0,0))) { hired++; } else if (['รอพิจารณาประวัติ', 'รอผลสัมภาษณ์', 'อยู่ระหว่างนัดสัมภาษณ์', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ'].includes(a.status) || (a.status === 'รอเริ่มงาน' && (!a.startDate || new Date().setHours(0,0,0,0) < new Date(a.startDate).setHours(0,0,0,0)))) { pending++; } else { rejected++; } }); return { total, hired, pending, rejected }; }, [dashboardData]);
 
-      const sendLineSummary = async () => { alert("ในโหมดจำลอง (Mock DB) ระบบจะระงับการส่ง LINE แจ้งเตือนไว้ครับ"); };
+      const sendLineSummary = async () => { alert("ส่งแจ้งเตือน LINE สำเร็จ (จำลองการส่ง)"); };
 
       const dashboardGroupedData = useMemo(() => {
         let filteredVacs = dashboardVacancies; const areaMap = {};
@@ -881,7 +756,7 @@
             <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center transition-all">
               <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
                 <Icons.Loader2 size={48} className="text-blue-600"/>
-                <span className="font-bold text-slate-700 text-lg">กำลังโหลดฐานข้อมูลจำลอง...</span>
+                <span className="font-bold text-slate-700 text-lg">กำลังซิงค์ข้อมูลกับ Google Sheets...</span>
               </div>
             </div>
           )}
@@ -900,8 +775,8 @@
                 <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
                   <div className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white shadow-sm border border-slate-200">
                     {cloudStatus === 'loading' && <><div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div><span className="text-slate-600">กำลังเชื่อมต่อ DB</span></>}
-                    {cloudStatus === 'connected' && <><div className="w-2 h-2 bg-emerald-500 rounded-full"></div><span className="text-emerald-700">จำลอง DB สำเร็จ</span></>}
-                    {cloudStatus === 'syncing' && <><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div><span className="text-blue-700">กำลังเซฟ...</span></>}
+                    {cloudStatus === 'connected' && <><div className="w-2 h-2 bg-emerald-500 rounded-full"></div><span className="text-emerald-700">ออนไลน์แล้ว</span></>}
+                    {cloudStatus === 'syncing' && <><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div><span className="text-blue-700">กำลังซิงค์...</span></>}
                     {cloudStatus === 'error' && <><div className="w-2 h-2 bg-red-500 rounded-full"></div><span className="text-red-700">ออฟไลน์</span></>}
                   </div>
                   <button onClick={() => setShowSettings(true)} className="flex flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-sm font-bold shadow-sm border border-slate-200 transition-colors"><Icons.Settings size={16}/><span className="inline">ตั้งค่า</span></button>
@@ -1217,7 +1092,7 @@
                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto relative">
                       <div className="shrink-0 sm:w-64">
                         <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icons.Building2 size={12} className="mr-1"/> สาขา</label>
-                        <select value={dashboardBranchFilter} onChange={(e) => {setDashboardBranchFilter(e.target.value); setDashboardPositionFilter('');}} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-500 appearance-none cursor-pointer">
+                        <select value={dashboardBranchFilter} onChange={(e) => {setDashboardBranchFilter(e.target.value); setDashboardPositionFilter('');}} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-50 appearance-none cursor-pointer">
                           <option value="">ทุกสาขา (All Stores)</option>
                           {dashboardBranchesForFilter.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}
                         </select>
@@ -1225,7 +1100,7 @@
 
                       <div className="shrink-0 sm:w-64">
                         <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icons.Briefcase size={12} className="mr-1"/> ตำแหน่งงาน</label>
-                        <select value={dashboardPositionFilter} onChange={(e) => setDashboardPositionFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-500 appearance-none cursor-pointer truncate">
+                        <select value={dashboardPositionFilter} onChange={(e) => setDashboardPositionFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-50 appearance-none cursor-pointer truncate">
                           <option value="">ทุกตำแหน่งงาน (All Positions)</option>
                           {dashboardPositionsForFilter.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                         </select>
@@ -1616,13 +1491,8 @@
                 <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
                   <div className="px-6 py-5 border-b bg-slate-50 flex justify-between items-center"><h3 className="font-extrabold text-xl text-slate-800 flex items-center"><Icons.Settings className="mr-2.5 text-blue-600"/>ตั้งค่าระบบ</h3><button onClick={()=>setShowSettings(false)} className="text-slate-400 hover:text-slate-800 p-2"><Icons.X size={18}/></button></div>
                   <div className="p-6 space-y-6">
-                    <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200">
-                      <h4 className="font-bold text-amber-800 mb-2"><Icons.Database size={18} className="mr-2 inline"/>โหมดจำลองฐานข้อมูล (Mock DB)</h4>
-                      <p className="text-xs text-amber-700 mb-3">คุณกำลังอยู่ในโหมดจำลอง ระบบจะดึงข้อมูลจากไฟล์ CSV หากต้องการรีเซ็ตข้อมูลใหม่ทั้งหมด ให้กดปุ่มด้านล่าง</p>
-                      <button onClick={handleResetMockDB} className="bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 hover:text-amber-800 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm w-full text-center">รีเซ็ตข้อมูลทั้งหมดและดึง CSV ใหม่</button>
-                    </div>
-
-                    <div className="bg-green-50 p-5 rounded-2xl border border-green-100 opacity-50"><h4 className="font-bold text-green-800 mb-3"><Icons.Send size={18} className="mr-2 inline"/>LINE API (ระงับในโหมดจำลอง)</h4><div className="space-y-3"><div><label className="text-[10px] font-bold text-green-700">Token</label><input type="text" disabled className="w-full bg-slate-100 border rounded-xl px-4 py-2 mt-1 text-xs"/></div><div><label className="text-[10px] font-bold text-green-700">Target ID</label><input type="text" disabled className="w-full bg-slate-100 border rounded-xl px-4 py-2 mt-1 text-xs"/></div></div></div>
+                    <div className="bg-green-50 p-5 rounded-2xl border border-green-100"><h4 className="font-bold text-green-800 mb-3"><Icons.Send size={18} className="mr-2 inline"/>LINE API</h4><div className="space-y-3"><div><label className="text-[10px] font-bold text-green-700">Token</label><input type="text" value={lineToken} onChange={(e) => { setLineToken(e.target.value); localStorage.setItem('hr_line_token', e.target.value); }} className="w-full bg-white border rounded-xl px-4 py-2 mt-1 text-xs"/></div><div><label className="text-[10px] font-bold text-green-700">Target ID</label><input type="text" value={lineTargetId} onChange={(e) => { setLineTargetId(e.target.value); localStorage.setItem('hr_line_target_id', e.target.value); }} className="w-full bg-white border rounded-xl px-4 py-2 mt-1 text-xs"/></div></div></div>
+                    <div><h4 className="font-bold text-slate-800 mb-3"><Icons.Upload size={18} className="mr-2 inline text-slate-400"/> อัปเดต Master Data</h4><div className="space-y-3"><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">1. ไฟล์สาขา</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportCSV(e);setShowSettings(false)}}/></label><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">2. ไฟล์ตำแหน่ง</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportPositionCSV(e);setShowSettings(false)}}/></label><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">3. ไฟล์ TA</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportTACSV(e);setShowSettings(false)}}/></label></div></div>
                   </div>
                 </div>
               </div>
@@ -1636,14 +1506,13 @@
       );
     }
     
-    // 🟢 ระบบดักจับ Error ป้องกันหน้าขาว
     try {
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     } catch (error) {
       document.getElementById('root').innerHTML = `
         <div style="padding: 2rem; background: #fee2e2; color: #b91c1c; border-radius: 1rem; margin: 2rem; font-family: sans-serif;">
-            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาดในระบบ</h2>
+            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาด</h2>
             <p style="margin-top: 1rem; font-weight: bold;">รายละเอียด Error:</p>
             <p>${error.toString()}</p>
         </div>
