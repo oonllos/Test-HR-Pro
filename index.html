@@ -73,7 +73,7 @@
 <div id="app-main" class="app-section">
     <nav class="navbar-custom">
       <div class="container-fluid d-flex justify-content-between align-items-center">
-        <div class="brand-logo"><i class="bi bi-people-fill"></i> HR Portal <span class="badge bg-primary fs-6 ms-2">PRO</span></div>
+        <div class="brand-logo"><i class="bi bi-people-fill"></i> HR Portal <span class="badge bg-success fs-6 ms-2">LIVE DB</span></div>
         <div class="text-secondary fw-bold" id="clock">00:00</div>
       </div>
     </nav>
@@ -213,8 +213,8 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    // 🟢 ลิงก์ API ของคุณ อัปเดตใหม่ล่าสุด!!
-    const API_URL = "https://script.google.com/macros/s/AKfycbzrvGJIm2Gcp1HTbxGEM1p79fshhrpkDk_gKBO3Es08fJHKXXYo_2rD-XvEkfu3bqxFhQ/exec"; 
+    // 🟢 อัปเดตลิงก์ API ตัวใหม่ล่าสุดของคุณแล้ว
+    const API_URL = "https://script.google.com/macros/s/AKfycbwo1T-yeA5Gpcb764lLLlfX5RaNeIbEeFgwx2oDYdjQtTq58icol4g0nxqFDMTUcYOAtg/exec"; 
 
     function switchApp(appType) {
         if(appType === 'main') {
@@ -355,7 +355,6 @@
     const { useState, useMemo, useEffect } = window.React;
     const { createRoot } = window.ReactDOM;
     
-    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons
     const Icon = ({ name, size = 16, className = '', title = '' }) => {
       return React.createElement('i', {
         className: `bi bi-${name} ${className} inline-block`,
@@ -400,7 +399,7 @@
     };
 
     // 🟢 ลิงก์ API ตัวใหม่ของคุณ
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzrvGJIm2Gcp1HTbxGEM1p79fshhrpkDk_gKBO3Es08fJHKXXYo_2rD-XvEkfu3bqxFhQ/exec"; 
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwo1T-yeA5Gpcb764lLLlfX5RaNeIbEeFgwx2oDYdjQtTq58icol4g0nxqFDMTUcYOAtg/exec"; 
 
     const STATUS_COLORS = { 'รอพิจารณาประวัติ': '#06B6D4', 'ผ่านสัมภาษณ์': '#10B981', 'รอผลสัมภาษณ์': '#3B82F6', 'ติดต่อผู้สมัครไม่ได้': '#64748B', 'อยู่ระหว่างนัดสัมภาษณ์': '#F59E0B', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด': '#EF4444', 'ไม่ผ่านสัมภาษณ์': '#DC2626', 'ไม่มีตำแหน่งงานว่าง': '#94A3B8', 'สำรอง/เก็บไว้พิจารณา': '#8B5CF6', 'ตรวจสุขภาพ': '#06B6D4', 'รอเริ่มงาน': '#0EA5E9', 'อื่นๆ': '#F97316' };
     const VACANCY_COLORS = { 'Vacant': '#F59E0B', 'Promote&Transfer': '#8B5CF6', 'Promote&Transfer Done': '#10B981', 'Hold': '#64748B', 'Closed': '#94A3B8', 'รอตรวจสุขภาพ': '#06B6D4', 'Waiting to Join': '#0EA5E9', 'Hired': '#10B981' };
@@ -526,9 +525,6 @@
           if (data.applicants) loadedApps = data.applicants.map(a => ({...a, id: String(a.id), branchCode: String(a.branchCode).padStart(3, '0')}));
           if (data.vacancies) loadedVacs = data.vacancies.map(v => ({...v, id: String(v.id), branchCode: String(v.branchCode).padStart(3, '0')}));
           setApplicants(loadedApps); setVacancies(loadedVacs);
-          const safeAppsForLocal = loadedApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !String(app.resumeBase64).startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
-          localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal));
-          localStorage.setItem('hr_vacancies', JSON.stringify(loadedVacs));
           return data;
         } catch (error) { console.error('Fetch error:', error); throw error; }
       };
@@ -549,10 +545,6 @@
             }
           } catch (e) {
             setCloudStatus('error');
-            let loadedApps = []; let loadedVacs = [];
-            let localApps = localStorage.getItem('hr_applicants'); let localVacs = localStorage.getItem('hr_vacancies');
-            if (localApps) loadedApps = JSON.parse(localApps) || []; if (localVacs) loadedVacs = JSON.parse(localVacs) || [];
-            setApplicants(loadedApps); setVacancies(loadedVacs);
           }
           setIsLoading(false);
         };
@@ -575,10 +567,8 @@
       };
 
       const syncToCloud = async (newApps, newVacs, forceSync = false) => {
-        const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
-        try { localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal)); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs)); } catch (err) {}
         const isSafeToSync = forceSync || cloudStatus === 'connected' || cloudStatus === 'syncing';
-        if (!isSafeToSync) { alert('⚠️ คุณอยู่ใน "โหมดออฟไลน์" ระบบจะบันทึกในเครื่องเท่านั้น'); return; }
+        if (!isSafeToSync) { alert('⚠️ ระบบเชื่อมต่อฐานข้อมูลไม่ได้'); return; }
         if (GOOGLE_SCRIPT_URL) {
           try {
             setCloudStatus('syncing');
@@ -613,11 +603,9 @@
 
       const deleteApplicant = async (id) => {
         if (window.confirm('ลบข้อมูลผู้สมัครรายนี้?')) {
-          const appToDelete = applicants.find(a => String(a.id) === String(id));
           const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); 
-          const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 })); localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal));
           if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') {
-            try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Applicants', recordId: id, fileUrl: appToDelete ? appToDelete.resumeBase64 : null }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); }
+            try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Applicants', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); }
           }
         }
       };
@@ -647,13 +635,7 @@
         const newVacs = [newVacancy, ...vacancies]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
       };
 
-      const deleteVacancy = async (id) => {
-        if (window.confirm('ลบตำแหน่งงานนี้?')) {
-          const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs));
-          if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') { try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Vacancies', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); } }
-        }
-      };
-
+      const deleteVacancy = async (id) => { if (window.confirm('ลบตำแหน่งงานนี้?')) { const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); syncToCloud(applicants, newVacs); } };
       const startEditVac = (v) => { setEditVacId(v.id); setEditVacForm({ ...v }); };
       const saveEditVac = () => {
         if (editVacForm.manualStatus === 'Promote&Transfer Done' && !editVacForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล'); return; }
@@ -762,7 +744,7 @@
             <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center transition-all">
               <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
                 <Icons.Loader2 size={48} className="text-blue-600"/>
-                <span className="font-bold text-slate-700 text-lg">กำลังซิงค์ข้อมูลกับ Google Sheets...</span>
+                <span className="font-bold text-slate-700 text-lg">กำลังโหลดข้อมูล...</span>
               </div>
             </div>
           )}
@@ -868,7 +850,7 @@
                   <>
                     <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
                       <div className="p-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center bg-slate-50/50">
-                        <div className="flex items-center space-x-3 shrink-0"><div className="bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 p-2 rounded-xl shadow-inner"><Icons.Target size={18}/></div><h3 className="font-extrabold text-lg text-slate-800">งานที่รับผิดชอบ <span className="text-xs font-normal text-slate-500">(Auto-filtered)</span></h3></div>
+                        <div className="flex items-center space-x-3 shrink-0"><div className="bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 p-2 rounded-xl shadow-inner"><Icons.Target size={18}/></div><h3 className="font-extrabold text-lg text-slate-800">งานที่รับผิดชอบ</h3></div>
                         <div className="flex flex-row items-center w-full lg:w-auto gap-2.5 overflow-x-auto hide-scrollbar pb-1">
                           <select value={recruitAreaFilter} onChange={e=>{setRecruitAreaFilter(e.target.value);setRecruitBranchFilter('')}} className="shrink-0 w-32 sm:w-40 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-sm cursor-pointer truncate"><option value="">ทุก Area</option>{appAreas.map(a=><option key={a}>{a}</option>)}</select>
                           <select value={recruitBranchFilter} onChange={e=>setRecruitBranchFilter(e.target.value)} disabled={!recruitAreaFilter} className="shrink-0 w-36 sm:w-48 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-sm disabled:opacity-50 cursor-pointer truncate"><option value="">ทุกสาขา</option>{branchesForRecruitFilter.map(b=><option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select>
@@ -895,7 +877,7 @@
                       </div>
                     </div>
                     <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 mt-8 overflow-hidden">
-                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center space-x-3"><div className="bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 p-2.5 rounded-xl shadow-inner"><Icons.Users size={20}/></div><h3 className="font-extrabold text-lg text-slate-800">ประวัติผู้สมัครที่ดูแล</h3></div><button onClick={()=>exportToExcel(myApplicants, 'MyApplicants_Export')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center hover:bg-emerald-50 hover:text-emerald-700 transition-all shadow-sm"><Icons.Download size={16} className="mr-2"/> Export Excel</button></div>
+                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center space-x-3"><div className="bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 p-2.5 rounded-xl shadow-inner"><Icons.Users size={20}/></div><h3 className="font-extrabold text-lg text-slate-800">ประวัติผู้สมัครที่ดูแล</h3></div><button onClick={()=>exportToExcel(myApplicants, 'MyApplicants_Export')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all shadow-sm"><Icons.Download size={16} className="mr-2"/> Export Excel</button></div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                           <tbody className="divide-y divide-slate-100">
@@ -949,7 +931,7 @@
 
                 {/* Modal เพิ่มผู้สมัครใหม่ */}
                 {addingApplicantFor && (
-                  <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
                       <div className="px-8 py-5 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center shadow-md relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
@@ -1032,19 +1014,494 @@
               </div>
             )}
 
-            {/* โหมดแสดงหน้าต่างต่างๆ (ไม่มีการเปลี่ยนแปลงในส่วนนี้) */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-4 sm:space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+                <div className="bg-slate-900 p-5 sm:p-6 lg:p-8 rounded-3xl text-white flex flex-col xl:flex-row justify-between items-start xl:items-center shadow-xl relative overflow-hidden gap-4 lg:gap-5">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+                  <div className="absolute bottom-0 left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl -mb-10 pointer-events-none"></div>
+                  
+                  <div className="relative z-10 w-full xl:w-auto">
+                    <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200">Executive Dashboard</h2>
+                    <p className="text-slate-400 text-xs sm:text-sm mt-1 font-medium flex items-center"><Icons.BarChart3 size={14} className="mr-1.5"/> สรุปภาพรวมและติดตามสถานะการสรรหา</p>
+                  </div>
+                  
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full xl:w-auto gap-2.5 relative z-10 hide-on-pdf">
+                    <div className="relative w-full sm:w-auto shrink-0">
+                        <select value={dashboardTA} onChange={e=>setDashboardTA(e.target.value)} className="w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-slate-800 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer shadow-sm appearance-none pr-10">
+                          <option value="ALL">📊 All TAs (ภาพรวมทั้งหมด)</option>
+                          {appTAs.map(t=><option key={t} value={t}>{t}</option>)}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
+                          <Icons.ChevronDown size={16} />
+                        </div>
+                    </div>
+
+                    <div className="flex flex-wrap sm:flex-nowrap w-full sm:w-auto gap-2 shrink-0">
+                      <button onClick={sendLineSummary} disabled={isSendingLine} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-[#00B900] hover:bg-[#009900] text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-[#00B900]/30 transition-all hover:-translate-y-0.5 disabled:opacity-70 whitespace-nowrap">
+                        {isSendingLine ? <Icons.Loader2 size={16} className="animate-spin"/> : <Icons.ImageIcon size={16}/>}
+                        <span>ส่งเข้า LINE</span>
+                      </button>
+                      <button onClick={exportDashboardToPDF} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-purple-500/30 transition-all hover:-translate-y-0.5 whitespace-nowrap">
+                        <Icons.Printer size={16}/>
+                        <span>Export PDF</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-4 hide-on-pdf relative z-20">
+                   <div className="flex items-center text-slate-800 font-extrabold text-sm shrink-0">
+                     <Icons.Filter size={18} className="mr-2 text-blue-600"/> ตัวกรองข้อมูล (Global Filter)
+                   </div>
+                   
+                   <div className="flex flex-col gap-1.5 w-full overflow-hidden">
+                       <div className="text-[10px] font-bold text-slate-500 flex items-center"><Icons.MapIcon size={12} className="mr-1"/> เลือก Area (เลือกได้มากกว่า 1)</div>
+                       <div className="flex flex-wrap items-center gap-2.5 pb-1.5 pt-0.5">
+                         <button 
+                           onClick={handleClearAllAreas}
+                           className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all border ${dashboardSelectedAreas.length === 0 ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'}`}
+                         >
+                           ทั้งหมด (All)
+                         </button>
+                         {appAreas.map(area => (
+                           <button 
+                             key={area}
+                             onClick={() => handleToggleDashboardArea(area)}
+                             className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all border ${dashboardSelectedAreas.includes(area) ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'}`}
+                           >
+                             {area}
+                           </button>
+                         ))}
+                       </div>
+                   </div>
+
+                   <div className="h-px bg-slate-100 w-full my-1"></div>
+
+                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto relative">
+                      <div className="shrink-0 sm:w-64">
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icons.Building2 size={12} className="mr-1"/> สาขา</label>
+                        <select value={dashboardBranchFilter} onChange={(e) => {setDashboardBranchFilter(e.target.value); setDashboardPositionFilter('');}} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-50 appearance-none cursor-pointer">
+                          <option value="">ทุกสาขา (All Stores)</option>
+                          {dashboardBranchesForFilter.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}
+                        </select>
+                      </div>
+
+                      <div className="shrink-0 sm:w-64">
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icons.Briefcase size={12} className="mr-1"/> ตำแหน่งงาน</label>
+                        <select value={dashboardPositionFilter} onChange={(e) => setDashboardPositionFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-50 appearance-none cursor-pointer truncate">
+                          <option value="">ทุกตำแหน่งงาน (All Positions)</option>
+                          {dashboardPositionsForFilter.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                        </select>
+                      </div>
+                   </div>
+                </div>
+
+                <div id="dashboard-export-area" className="space-y-6 bg-transparent p-1 relative z-10">
+                  
+                  <div>
+                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icons.Briefcase className="mr-2 text-blue-600" size={16}/> สรุปสถานะตำแหน่งงาน <span className="text-[10px] font-medium text-slate-400 ml-2">(Vacancy Overview)</span></h3>
+                    <div className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-2 hide-scrollbar">
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-blue-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('เปิดรับทั้งหมด (Active)', 'vacancy', 'all')}>
+                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center"><Icons.Target size={14} className="mr-1.5 text-blue-400"/>เปิดรับทั้งหมด</div>
+                         <div className="text-2xl sm:text-3xl font-black text-slate-800">{vacancyStats.total}</div>
+                       </div>
+                       
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('ว่าง (Vacant)', 'vacancy', 'vacant')}>
+                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center"><Icons.AlertCircle size={14} className="mr-1.5"/>ว่าง (Vacant)</div>
+                         <div className="text-2xl sm:text-3xl font-black text-amber-600">{vacancyStats.vacant}</div>
+                       </div>
+                       
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-purple-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('Promote & Transfer', 'vacancy', 'promote')}>
+                         <div className="text-[10px] sm:text-xs text-purple-600 font-bold mb-1.5 flex items-center"><Icons.Users size={14} className="mr-1.5"/>Promote/Transfer</div>
+                         <div className="text-2xl sm:text-3xl font-black text-purple-600">{vacancyStats.promote}</div>
+                       </div>
+                       
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-slate-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('Hold / ระงับชั่วคราว', 'vacancy', 'hold')}>
+                         <div className="text-[10px] sm:text-xs text-slate-600 font-bold mb-1.5 flex items-center"><Icons.Clock size={14} className="mr-1.5"/>Hold / อื่นๆ</div>
+                         <div className="text-2xl sm:text-3xl font-black text-slate-600">{vacancyStats.hold}</div>
+                       </div>
+
+                       <div className="min-w-[160px] flex-1 bg-gradient-to-br from-emerald-500 to-teal-600 p-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all cursor-pointer text-white relative overflow-hidden flex flex-col justify-center" onClick={() => handleShowDashboardDetail('Progress (ได้คนแล้ว)', 'vacancy', 'fulfilled')}>
+                         <div className="flex justify-between items-end mb-1 relative z-10">
+                           <div className="text-[10px] sm:text-xs text-emerald-50 font-bold flex items-center"><Icons.CheckCircle2 size={14} className="mr-1.5"/>Progress (ปิดงาน)</div>
+                           <div className="text-[9px] sm:text-[10px] text-emerald-100 font-bold bg-black/10 px-1.5 py-0.5 rounded-md">{vacancyStats.fulfilled}/{vacancyStats.total}</div>
+                         </div>
+                         <div className="text-2xl sm:text-3xl font-black text-white relative z-10 mt-0.5">{vacancyStats.progress}%</div>
+                         <div className="w-full bg-black/20 rounded-full h-1.5 mt-2.5 overflow-hidden relative z-10">
+                           <div className="bg-white h-1.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${vacancyStats.progress}%` }}></div>
+                         </div>
+                       </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icons.UserPlus className="mr-2 text-indigo-600" size={16}/> สรุปสถานะผู้สมัคร <span className="text-[10px] font-medium text-slate-400 ml-2">(Applicant Overview)</span></h3>
+                    <div className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-2 hide-scrollbar">
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('รวมผู้สมัคร', 'applicant', 'all')}>
+                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.Users size={14} className="text-indigo-400"/><span>ผู้สมัครทั้งหมด</span></div>
+                         <div className="text-2xl sm:text-3xl font-black text-slate-800">{applicantStats.total}</div>
+                       </div>
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-emerald-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('สำเร็จ (Hired)', 'applicant', 'hired')}>
+                         <div className="text-[10px] sm:text-xs text-emerald-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.CheckCircle2 size={14}/><span>สำเร็จ (Hired)</span></div>
+                         <div className="text-2xl sm:text-3xl font-black text-emerald-600">{applicantStats.hired}</div>
+                       </div>
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('รอดำเนินการ', 'applicant', 'pending')}>
+                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.Clock size={14}/><span>รอดำเนินการ</span></div>
+                         <div className="text-2xl sm:text-3xl font-black text-amber-600">{applicantStats.pending}</div>
+                       </div>
+                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-red-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('ไม่ผ่าน/ปฏิเสธ', 'applicant', 'rejected')}>
+                         <div className="text-[10px] sm:text-xs text-red-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.X size={14}/><span>ไม่ผ่าน/ปฏิเสธ</span></div>
+                         <div className="text-2xl sm:text-3xl font-black text-red-500">{applicantStats.rejected}</div>
+                       </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
+                      <h3 className="font-extrabold text-sm flex items-center text-slate-800">
+                        <Icons.Building2 className="mr-2 text-indigo-600" size={16}/> 
+                        ข้อมูลสถานะและการดำเนินงานแบบเจาะลึก
+                      </h3>
+                    </div>
+                    
+                    <div className="overflow-x-auto hide-scrollbar">
+                      <table className="w-full text-xs text-left whitespace-nowrap border-collapse">
+                        <thead className="bg-white border-b border-slate-200 text-slate-400">
+                          <tr>
+                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[35%]">Area / สาขา / ตำแหน่งงาน</th>
+                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[30%]">สถานะงาน</th>
+                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[15%]">ผู้สมัคร</th>
+                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[20%]">Progress</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {dashboardGroupedData.length > 0 ? dashboardGroupedData.map((area) => {
+                            const STANDARD_STATUS_ORDER = ['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed', 'Hired', 'Waiting to Join', 'รอตรวจสุขภาพ'];
+                            const activeStatusesInArea = STANDARD_STATUS_ORDER.filter(s => area.statusCounts[s] > 0);
+                            Object.keys(area.statusCounts).forEach(s => {
+                                if(!STANDARD_STATUS_ORDER.includes(s) && area.statusCounts[s] > 0) activeStatusesInArea.push(s);
+                            });
+
+                            return (
+                              <React.Fragment key={area.area}>
+                                <tr className="bg-indigo-50/40 border-y border-indigo-100/50 cursor-pointer hover:bg-indigo-100/50 transition-colors" onClick={() => toggleDashboardAreaRow(area.area)} title="คลิกเพื่อดู/ซ่อน สาขา">
+                                  <td className="px-4 py-2.5 align-middle">
+                                    <div className="flex items-center">
+                                      {expandedAreas[area.area] ? <Icons.ChevronDown size={16} className="mr-1 text-indigo-500"/> : <Icons.ChevronRight size={16} className="mr-1 text-indigo-400"/>}
+                                      <Icons.MapIcon size={14} className="mr-1.5 text-indigo-500"/>
+                                      <span className="font-black text-indigo-800 text-xs">{area.area}</span>
+                                      <span className="ml-2 text-[9px] bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-600 font-bold shadow-sm">รวม {area.totalVacancies} ตำแหน่ง</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5 align-middle">
+                                    <div className="flex flex-wrap gap-1.5 items-center">
+                                      {activeStatusesInArea.length > 0 ? activeStatusesInArea.map(status => {
+                                        let shortStatus = status.includes('Promote') ? 'Promote' : status;
+                                        return (
+                                          <div key={status} className="shrink-0 flex justify-start">
+                                            <span 
+                                              onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`สถานะ: ${status} (${area.area})`, 'vacancy', status, null, area.area); }}
+                                              className="px-1.5 py-0.5 rounded shadow-sm text-[9px] font-bold text-center w-full truncate cursor-pointer hover:opacity-80 transition-opacity" 
+                                              style={{backgroundColor:(VACANCY_COLORS[status] || '#cbd5e1')+'15', color:VACANCY_COLORS[status] || '#64748b', border: `1px solid ${(VACANCY_COLORS[status] || '#cbd5e1')}30`}} 
+                                              title={`คลิกเพื่อดูข้อมูล ${status}`}
+                                            >
+                                              {shortStatus} {area.statusCounts[status]}
+                                            </span>
+                                          </div>
+                                        );
+                                      }) : <span className="text-[10px] text-slate-400 font-bold">- ไม่มีข้อมูล -</span>}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5 align-middle">
+                                    <div className="w-[85px] shrink-0">
+                                      <span 
+                                         onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`ผู้สมัครทั้งหมด (${area.area})`, 'applicant', 'all', null, area.area); }}
+                                         className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shadow-sm w-full block text-center truncate cursor-pointer hover:bg-blue-100 transition-colors"
+                                      >
+                                        Candidate {area.candidateCount}
+                                      </span>
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-2.5 align-middle pr-6">
+                                    <div className="flex items-center justify-between mb-0.5">
+                                      <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-wider">Area Progress</span>
+                                      <span className="text-[11px] font-black text-indigo-700">{area.progressPct}%</span>
+                                    </div>
+                                    <div className="w-full bg-indigo-100/50 rounded-full h-1 overflow-hidden shadow-inner border border-indigo-200/30">
+                                      <div className={`h-full bg-gradient-to-r transition-all duration-1000 ease-out ${area.progressPct === 100 ? 'from-emerald-400 to-emerald-500' : 'from-blue-400 to-indigo-500'}`} style={{ width: `${area.progressPct}%` }}></div>
+                                    </div>
+                                  </td>
+                                </tr>
+
+                                {expandedAreas[area.area] && area.branches.map((branch) => (
+                                  <React.Fragment key={branch.branchCode}>
+                                    <tr className="bg-slate-50/50 border-b border-slate-50 cursor-pointer hover:bg-blue-50/30 transition-colors animate-in slide-in-from-top-1 duration-200" onClick={() => toggleBranch(branch.branchCode)} title="คลิกเพื่อดู/ซ่อน ตำแหน่งงาน">
+                                      <td className="px-4 py-2 pl-8 align-middle">
+                                        <div className="flex items-center">
+                                          {expandedBranches[branch.branchCode] ? <Icons.ChevronDown size={14} className="mr-1 text-blue-500"/> : <Icons.ChevronRight size={14} className="mr-1 text-slate-400"/>}
+                                          <Icons.Building2 size={12} className="mr-1.5 text-slate-400"/>
+                                          <span className="font-bold text-slate-700 text-[11px]">{branch.branchCode} - {branch.branchName}</span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2 align-middle">
+                                        <div className="flex flex-wrap gap-3 items-center">
+                                          {activeStatusesInArea.length > 0 ? activeStatusesInArea.map(status => {
+                                            if (branch.statusCounts[status] > 0) {
+                                                let shortStatus = status.includes('Promote') ? 'Promote' : status === 'Vacant' ? 'Vacant' : status;
+                                                return (
+                                                  <span 
+                                                    key={status} 
+                                                    onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`สถานะ: ${status} (สาขา: ${branch.branchName})`, 'vacancy', status, branch.branchCode, null); }}
+                                                    className="text-[11px] font-bold cursor-pointer hover:underline" 
+                                                    style={{color:VACANCY_COLORS[status] || '#94a3b8'}}
+                                                    title={`คลิกเพื่อดูข้อมูล ${status}`}
+                                                  >
+                                                    {shortStatus} {branch.statusCounts[status]}
+                                                  </span>
+                                                );
+                                            }
+                                            return null;
+                                          }) : <span className="text-[10px] text-slate-400">-</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2 align-middle">
+                                        <div className="w-[85px] shrink-0 text-center">
+                                          <span 
+                                             onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`ผู้สมัครทั้งหมด (สาขา: ${branch.branchName})`, 'applicant', 'all', branch.branchCode, null); }}
+                                             className="text-[10px] font-bold text-blue-600 cursor-pointer hover:underline"
+                                          >
+                                              Candidate {branch.candidateCount}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-2 align-middle pr-6">
+                                        <div className="flex items-center justify-between mb-0.5">
+                                          <span className="text-[8px] font-bold text-slate-400">Branch Progress</span>
+                                          <span className="text-[10px] font-black text-slate-600">{branch.progressPct}%</span>
+                                        </div>
+                                        <div className="w-full bg-slate-200/50 rounded-full h-1 overflow-hidden shadow-inner">
+                                          <div className={`h-full transition-all duration-1000 ease-out ${branch.progressPct === 100 ? 'bg-emerald-400' : 'bg-blue-400'}`} style={{ width: `${branch.progressPct}%` }}></div>
+                                        </div>
+                                      </td>
+                                    </tr>
+
+                                    {expandedBranches[branch.branchCode] && branch.vacancies.map((vac) => (
+                                      <tr key={vac.id} className="hover:bg-blue-50/20 transition-colors group bg-white animate-in slide-in-from-top-1 duration-200">
+                                        <td className="px-4 py-2 align-middle pl-14">
+                                          <div className="font-bold text-slate-600 flex items-center text-[10px]">
+                                            <Icons.Briefcase size={10} className="mr-1.5 text-slate-300 group-hover:text-blue-400 transition-colors"/>
+                                            {vac.position}
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-2 align-middle">
+                                          <div className="w-20">
+                                             <span className="px-2 py-0.5 rounded text-[10px] font-bold shadow-sm inline-block w-full text-center" style={{backgroundColor:VACANCY_COLORS[vac.insight.computedStatus]+'15', color:VACANCY_COLORS[vac.insight.computedStatus], border: `1px solid ${(VACANCY_COLORS[vac.insight.computedStatus] || '#cbd5e1')}30`}}>
+                                               {vac.insight.computedStatus === 'Promote&Transfer Done' ? 'Promote Done' : vac.insight.computedStatus.includes('Promote') ? 'Promote' : vac.insight.computedStatus}
+                                             </span>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-2 align-middle">
+                                          <div className="w-[110px] shrink-0">
+                                            <button onClick={() => handleShowDashboardDetail(`รายชื่อผู้สมัครสาขา: ${vac.branchName}`, 'applicant', 'all', vac.branchCode)} className="flex items-center justify-between w-full bg-slate-50 hover:bg-blue-50 px-2 py-1.5 rounded-lg border border-slate-100 transition-colors group/btn">
+                                               <span className="text-[9px] font-bold text-slate-500 flex items-center group-hover/btn:text-blue-600"><Icons.Users size={10} className="mr-1"/> รวม {vac.insight.applicantCount} คน</span>
+                                               <span className="text-[8px] text-blue-500 font-bold ml-1 bg-white border border-blue-100 px-1.5 py-0.5 rounded shadow-sm">ดูทั้งหมด</span>
+                                            </button>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-2 align-middle pr-6">
+                                          <div className="flex items-center justify-between mb-0.5">
+                                            <span className="text-[10px] font-black text-slate-600">{vac.progressPct}%</span>
+                                            <span className="text-[8px] text-slate-400 font-bold bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{vac.progressPct === 100 ? 'สำเร็จ' : 'รอดำเนินการ'}</span>
+                                          </div>
+                                          <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden shadow-inner border border-slate-100">
+                                            <div className={`h-full rounded-full transition-all duration-1000 ease-out ${vac.progressPct === 100 ? 'bg-emerald-400' : 'bg-gradient-to-r from-blue-300 to-indigo-400'}`} style={{ width: `${vac.progressPct}%` }}></div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </React.Fragment>
+                                ))}
+                              </React.Fragment>
+                            );
+                          }) : <tr><td colSpan="4" className="p-8 text-center text-slate-400"><Icons.SearchIcon size={28} className="mx-auto mb-2 text-slate-200"/><p className="font-bold text-xs text-slate-500">ไม่มีข้อมูลในเงื่อนไขที่เลือก</p></td></tr>}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {viewApplicants && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95">
+                  <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-start shadow-sm relative z-10">
+                    <div>
+                      <h3 className="font-extrabold text-lg text-slate-800 mb-0.5">{viewApplicants.position}</h3>
+                      <p className="text-xs font-bold text-indigo-600 flex items-center"><Icons.MapPin size={12} className="mr-1"/> {viewApplicants.branchName}</p>
+                    </div>
+                    <button onClick={()=>setViewApplicants(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-2 rounded-full transition-colors shadow-sm"><Icons.X size={16}/></button>
+                  </div>
+                  
+                  <div className="p-3 sm:p-4 space-y-2 overflow-y-auto hide-scrollbar bg-slate-50/50 flex-1">
+                    {viewApplicants.list.map(a => (
+                      <div key={a.id} className="p-2.5 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center hover:shadow-md hover:border-blue-300 transition-all bg-white group relative overflow-hidden gap-1.5">
+                        <div className="text-xs z-10">
+                          <p className="font-extrabold text-sm text-slate-800 mb-0.5">{a.name}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-slate-500 font-medium flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 text-[10px]"><Icons.Phone size={10} className="mr-1"/>{a.phone}</p>
+                            {a.resumeBase64 && a.resumeBase64 !== 'Uploaded' && !String(a.resumeBase64).startsWith('Error') && (
+                              <button onClick={(e) => handleViewResume(e, a.resumeBase64, a.resumeName)} className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                                <Icons.Eye size={10} className="mr-1" /> ดูเรซูเม่
+                              </button>
+                            )}
+                            {a.resumeBase64 === 'Uploaded' && (
+                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
+                                 <Icons.Paperclip size={10} className="mr-1 text-emerald-500" /> แนบไฟล์แล้ว
+                               </span>
+                            )}
+                            {a.resumeBase64 && String(a.resumeBase64).startsWith('Error') && (
+                               <span className="text-[10px] font-bold text-red-600 flex items-center bg-red-50 px-2 py-0.5 rounded-lg border border-red-200" title={a.resumeBase64}>
+                                 <Icons.AlertCircle size={10} className="mr-1" /> ล้มเหลว
+                               </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-1 sm:mt-0 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center z-10 gap-1.5">
+                          <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:STATUS_COLORS[a.status]+'15', color:STATUS_COLORS[a.status], borderColor:STATUS_COLORS[a.status]+'30'}}>
+                            {a.status}
+                          </span>
+                          <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md"><Icons.UserPlus size={8} className="mr-1"/> {a.ta}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {dashboardDetailModal && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl relative max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                  <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-center shadow-sm relative z-10">
+                    <h3 className="font-extrabold text-lg text-slate-800 flex items-center">
+                       <div className={`p-1.5 rounded-xl mr-2.5 ${dashboardDetailModal.type === 'vacancy' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                         {dashboardDetailModal.type === 'vacancy' ? <Icons.Briefcase size={16}/> : <Icons.Users size={16}/>}
+                       </div>
+                       {dashboardDetailModal.title}
+                       <span className="ml-3 bg-slate-800 text-white px-2 py-0.5 rounded-md text-[10px] font-black shadow-md">{dashboardDetailModal.data.length} รายการ</span>
+                    </h3>
+                    <button onClick={()=>setDashboardDetailModal(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-1.5 rounded-full transition-colors shadow-sm"><Icons.X size={16}/></button>
+                  </div>
+                  <div className="overflow-y-auto p-3 sm:p-4 space-y-2 flex-1 bg-slate-50/50 hide-scrollbar">
+                    {dashboardDetailModal.data.length === 0 ? (
+                      <div className="text-center text-slate-400 py-10 flex flex-col items-center">
+                        <Icons.SearchIcon size={32} className="text-slate-200 mb-2"/>
+                        <p className="font-bold text-xs">ไม่มีข้อมูลที่ตรงกับสถานะนี้</p>
+                      </div>
+                    ) : (
+                      dashboardDetailModal.data.map((item, idx) => (
+                        <div key={item.id || idx} className="p-2.5 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 hover:shadow-md hover:border-blue-300 transition-all bg-white group">
+                          {dashboardDetailModal.type === 'vacancy' ? (
+                            <>
+                              <div className="text-xs">
+                                <p className="font-extrabold text-sm text-slate-800 mb-0.5">{item.position}</p>
+                                <div className="text-slate-500 flex flex-col sm:flex-row font-medium gap-1.5 sm:items-center">
+                                  <div className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
+                                    <Icons.MapPin size={10} className="mr-1 text-slate-400"/> <span className="font-bold text-[10px]">{item.branchName}</span> 
+                                    <span className="mx-1.5 text-slate-300">|</span> 
+                                    <span className="text-blue-600 font-extrabold uppercase text-[9px]">{item.area}</span>
+                                  </div>
+                                  {['Hired', 'Waiting to Join'].includes(item.insight.computedStatus) && (
+                                    <div className="text-[10px] text-slate-500 flex items-center bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 font-bold">
+                                      <Icons.UserPlus size={10} className="mr-1"/>
+                                      คนสมัคร: <span className="ml-1">{item.insight.matchedApplicants.find(a => ['ผ่านสัมภาษณ์', 'รอเริ่มงาน'].includes(a.status))?.name || 'ไม่ระบุ'}</span>
+                                    </div>
+                                  )}
+                                  {item.insight.computedStatus === 'Promote&Transfer Done' && item.effectiveDate && (
+                                    <div className="text-[10px] flex items-center bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 font-bold">
+                                      <Icons.Clock size={10} className="mr-1"/>
+                                      มีผล: <span className="ml-1">{new Date(item.effectiveDate).toLocaleDateString('th')}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-left sm:text-right shrink-0 w-full sm:w-auto flex justify-end">
+                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:VACANCY_COLORS[item.insight.computedStatus]+'15', color:VACANCY_COLORS[item.insight.computedStatus], borderColor:VACANCY_COLORS[item.insight.computedStatus]+'30'}}>
+                                  {item.insight.computedStatus}
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-xs">
+                                <p className="font-extrabold text-sm text-slate-800 mb-0.5">{item.name}</p>
+                                <div className="text-slate-500 flex items-center flex-wrap gap-1.5 font-medium">
+                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icons.Briefcase size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.position}</span></span>
+                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icons.MapPin size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.branchName}</span></span>
+                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icons.Phone size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.phone}</span></span>
+                                  
+                                  {item.resumeBase64 && item.resumeBase64 !== 'Uploaded' && !String(item.resumeBase64).startsWith('Error') && (
+                                    <button onClick={(e) => handleViewResume(e, item.resumeBase64, item.resumeName)} className="text-[9px] text-blue-700 hover:text-white font-bold flex items-center bg-blue-50 hover:bg-blue-600 px-2 py-0.5 rounded-md transition-all border border-blue-200 shadow-sm">
+                                      <Icons.Eye size={10} className="mr-1" /> ดูเรซูเม่
+                                    </button>
+                                  )}
+                                  {item.resumeBase64 === 'Uploaded' && (
+                                    <span className="text-[9px] text-slate-500 font-bold flex items-center bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
+                                      <Icons.CheckCircle2 size={10} className="mr-1 text-emerald-500" /> มีไฟล์แนบ
+                                    </span>
+                                  )}
+                                  {item.resumeBase64 && String(item.resumeBase64).startsWith('Error') && (
+                                    <span className="text-[9px] text-red-600 font-bold flex items-center bg-red-50 px-2 py-0.5 rounded-md border border-red-200" title={item.resumeBase64}>
+                                      <Icons.AlertCircle size={10} className="mr-1" /> อัปโหลดล้มเหลว
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-left sm:text-right shrink-0 w-full sm:w-auto flex flex-row sm:flex-col justify-between sm:justify-end items-center sm:items-end gap-1.5 mt-2 sm:mt-0">
+                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:(STATUS_COLORS[item.status]||'#cbd5e1')+'15', color:STATUS_COLORS[item.status]||'#64748b', borderColor: (STATUS_COLORS[item.status]||'#cbd5e1')+'30'}}>
+                                  {item.status}
+                                </span>
+                                <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md border"><Icons.UserPlus size={8} className="mr-1 inline"/>{item.ta}</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {showSettings && (
+              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
+                  <div className="px-6 py-5 border-b bg-slate-50 flex justify-between items-center"><h3 className="font-extrabold text-xl text-slate-800 flex items-center"><Icons.Settings className="mr-2.5 text-blue-600"/>ตั้งค่าระบบ</h3><button onClick={()=>setShowSettings(false)} className="text-slate-400 hover:text-slate-800 p-2"><Icons.X size={18}/></button></div>
+                  <div className="p-6 space-y-6">
+                    <div className="bg-green-50 p-5 rounded-2xl border border-green-100"><h4 className="font-bold text-green-800 mb-3"><Icons.Send size={18} className="mr-2 inline"/>LINE API</h4><div className="space-y-3"><div><label className="text-[10px] font-bold text-green-700">Token</label><input type="text" value={lineToken} onChange={(e) => { setLineToken(e.target.value); localStorage.setItem('hr_line_token', e.target.value); }} className="w-full bg-white border rounded-xl px-4 py-2 mt-1 text-xs"/></div><div><label className="text-[10px] font-bold text-green-700">Target ID</label><input type="text" value={lineTargetId} onChange={(e) => { setLineTargetId(e.target.value); localStorage.setItem('hr_line_target_id', e.target.value); }} className="w-full bg-white border rounded-xl px-4 py-2 mt-1 text-xs"/></div></div></div>
+                    <div><h4 className="font-bold text-slate-800 mb-3"><Icons.Upload size={18} className="mr-2 inline text-slate-400"/> อัปเดต Master Data</h4><div className="space-y-3"><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">1. ไฟล์สาขา</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportCSV(e);setShowSettings(false)}}/></label><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">2. ไฟล์ตำแหน่ง</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportPositionCSV(e);setShowSettings(false)}}/></label><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">3. ไฟล์ TA</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportTACSV(e);setShowSettings(false)}}/></label></div></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {previewFile && (
+              <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in"><div className="bg-white p-2 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col relative shadow-2xl animate-in zoom-in-95"><div className="absolute -top-5 -right-5 flex space-x-3"><button onClick={() => handleDownloadFile(previewFile.originalUrl || previewFile.base64, previewFile.name)} className="bg-blue-600 text-white rounded-full p-3 shadow-lg"><Icons.Download size={22}/></button><button onClick={()=>setPreviewFile(null)} className="bg-white text-slate-800 rounded-full p-3 shadow-lg border"><Icons.X size={22}/></button></div>{previewFile.base64.startsWith('data:image/') || previewFile.base64.startsWith('data:application/pdf') || previewFile.base64.startsWith('http') ? <iframe src={previewFile.base64} className="w-full h-full rounded-2xl border bg-slate-50"/> : <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50"><Icons.FileText size={48} className="text-blue-500 mb-6"/><h3 className="font-extrabold text-2xl mb-8">{previewFile.name}</h3></div>}</div></div>
+            )}
           </main>
         </div>
       );
     }
     
+    // 🟢 ระบบดักจับ Error ป้องกันหน้าขาว
     try {
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     } catch (error) {
       document.getElementById('root').innerHTML = `
         <div style="padding: 2rem; background: #fee2e2; color: #b91c1c; border-radius: 1rem; margin: 2rem; font-family: sans-serif;">
-            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาด</h2>
+            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาดในระบบ</h2>
             <p style="margin-top: 1rem; font-weight: bold;">รายละเอียด Error:</p>
             <p>${error.toString()}</p>
         </div>
