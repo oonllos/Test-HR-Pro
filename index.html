@@ -1,1600 +1,360 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HR Recruitment Workspace - Pro Edition</title>
+// =================================================================
+// 🚀 HR UNIFIED WORKSPACE - GOOGLE APPS SCRIPT BACKEND
+// =================================================================
+
+const SHEET_NAMES = {
+  FT: 'Applicants_FT', // อ้างอิงตารางผู้สมัครหลัก
+  PT: 'PartTime_PT',
+  VACANCY: 'Vacancies',
+  MASTER: 'MasterData'
+};
+
+// ---------------------------------------------------------
+// 1. SETUP & UTILS (สร้างชีตอัตโนมัติถ้ายังไม่มี)
+// ---------------------------------------------------------
+function initSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&family=Sarabun:wght@400;500;700&family=Prompt:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+  // สร้างตาราง Full-Time (Applicants)
+  let ftSheet = ss.getSheetByName(SHEET_NAMES.FT);
+  if (!ftSheet) {
+    ftSheet = ss.insertSheet(SHEET_NAMES.FT);
+    // หัวตาราง 15 คอลัมน์ (มี rowId ไว้ใช้อ้างอิง)
+    ftSheet.appendRow(["rowId", "App_Date", "Store_No", "Store_Name", "Candidate_Name", "Phone_No", "Position", "Company", "Department", "Apply_Source", "Interview_Date", "Interview_Status", "Start_Date", "Start_Status", "Remark"]);
+    ftSheet.getRange("A1:O1").setFontWeight("bold").setBackground("#f3f4f6");
+  }
+
+  // สร้างตาราง Part-Time
+  let ptSheet = ss.getSheetByName(SHEET_NAMES.PT);
+  if (!ptSheet) {
+    ptSheet = ss.insertSheet(SHEET_NAMES.PT);
+    ptSheet.appendRow(["rowId", "PT_Date", "Store_No", "Department", "Find_Temp", "Student", "Elderly"]);
+    ptSheet.getRange("A1:G1").setFontWeight("bold").setBackground("#dcfce7");
+  }
+
+  // สร้างตาราง Vacancies (ระบบ Pro)
+  let vacSheet = ss.getSheetByName(SHEET_NAMES.VACANCY);
+  if (!vacSheet) {
+    vacSheet = ss.insertSheet(SHEET_NAMES.VACANCY);
+    vacSheet.appendRow(["id", "area", "branchCode", "branchName", "position", "manualStatus", "effectiveDate", "createdAt", "timestamp"]);
+    vacSheet.getRange("A1:I1").setFontWeight("bold").setBackground("#e0e7ff");
+  }
+}
+
+function getSheetDataAsJSON(sheetName) {
+  initSheets();
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) return [];
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
   
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
-
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap');
-    
-    .app-section { display: none; }
-    .app-section.active { display: block; animation: fadeIn 0.4s; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    :root { --primary-color: #2563eb; --secondary-color: #64748b; --success-color: #198754; --bg-light: #f1f5f9; }
-    body { font-family: 'Prompt', sans-serif; background-color: #f1f5f9; background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; overflow-x: hidden; }
-    
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    .hide-scrollbar::-webkit-scrollbar { display: none; }
-    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    
-    .status-select {
-      -webkit-appearance: none; -moz-appearance: none; appearance: none;
-      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-      background-repeat: no-repeat; background-position: right 0.4rem center; background-size: 1em; padding-right: 1.6rem;
+  const headers = data[0];
+  const result = [];
+  for (let i = 1; i < data.length; i++) {
+    let obj = {};
+    for (let j = 0; j < headers.length; j++) {
+      obj[headers[j]] = data[i][j];
     }
-    .glass-effect { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+    result.push(obj);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------
+// 2. HTTP GET (สำหรับโหลดข้อมูลเริ่มต้นของฝั่ง Pro / React)
+// ---------------------------------------------------------
+function doGet(e) {
+  if (e.parameter.api === 'react_init') {
+    initSheets();
     
-    .navbar-custom { background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.05); padding: 15px 20px; }
-    .brand-logo { font-family: 'Kanit', sans-serif; font-weight: 600; font-size: 1.5rem; color: var(--primary-color); display: flex; align-items: center; gap: 10px; }
-    .dashboard-container { max-width: 1400px; margin: 30px auto; padding: 0 15px; }
-    .custom-card { border: none; border-radius: 12px; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 20px; overflow: hidden; }
-    .card-header-custom { background: white; border-bottom: 1px solid #e2e8f0; padding: 20px; font-weight: 700; color: #334155; display: flex; align-items: center; justify-content: space-between; }
-    .nav-pills .nav-link { border-radius: 8px; padding: 10px 20px; font-weight: 600; color: var(--secondary-color); transition: all 0.3s; border: 1px solid transparent; cursor: pointer; margin-right: 5px; }
-    .nav-pills .nav-link.active { background-color: var(--primary-color); color: white; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
-    .nav-pills .nav-link.pt-tab.active { background-color: var(--success-color); box-shadow: 0 4px 12px rgba(25, 135, 84, 0.3); }
-    .table-pro { width: 100%; border-collapse: separate; border-spacing: 0; }
-    .table-pro thead th { background: #f8fafc; color: #334155; font-weight: 700; padding: 15px; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #e2e8f0; white-space: nowrap; }
-    .table-pro tbody td { padding: 12px 15px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; white-space: nowrap; color: #475569; }
-    .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); backdrop-filter: blur(2px); z-index: 9999; }
-    .loader-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; }
-  </style>
-</head>
-<body>
+    // ดึงข้อมูลจากตาราง Applicants_FT มาแปลงให้เข้ากับหน้า Pro
+    const applicants = getSheetDataAsJSON(SHEET_NAMES.FT).map(r => ({
+      id: String(r.rowId || ''),
+      branchCode: String(r.Store_No || '').padStart(3, '0'),
+      branchName: r.Store_Name || "สาขา " + r.Store_No,
+      position: r.Position,
+      name: r.Candidate_Name,
+      phone: r.Phone_No,
+      source: r.Apply_Source,
+      status: (r.Start_Status && r.Start_Status !== "") ? r.Start_Status : (r.Interview_Status || 'รอพิจารณาประวัติ'),
+      comment: r.Remark,
+      startDate: r.Start_Date,
+      ta: 'Recruiter',
+      timestamp: r.App_Date,
+      updatedAt: new Date(r.App_Date).getTime() || Date.now()
+    })).filter(a => a.id !== ''); // กรองแถวว่างทิ้ง
 
-<div class="bg-dark text-white p-2 d-flex justify-content-center gap-3 shadow-sm sticky-top" style="z-index: 1050;">
-    <button class="btn btn-outline-light fw-bold px-4 text-dark" id="btn-show-main" onclick="switchApp('main')">
-        <i class="bi bi-hdd-stack-fill me-2"></i> ระบบข้อมูลสาขา (Main)
-    </button>
-    <button class="btn btn-primary fw-bold px-4" id="btn-show-pro" onclick="switchApp('pro')">
-        <i class="bi bi-stars me-2"></i> ระบบสรรหา (Pro Edition)
-    </button>
-</div>
+    const vacancies = getSheetDataAsJSON(SHEET_NAMES.VACANCY);
 
-<div id="app-main" class="app-section">
-    <nav class="navbar-custom">
-      <div class="container-fluid d-flex justify-content-between align-items-center">
-        <div class="brand-logo">
-            <i class="bi bi-people-fill"></i> HR Portal 
-            <span class="badge bg-warning text-dark fs-6 ms-2">MOCK DB MODE</span>
-        </div>
-        <div class="text-secondary fw-bold" id="clock">00:00</div>
-      </div>
-    </nav>
-
-    <div class="dashboard-container">
-      <div class="d-flex justify-content-center mb-4 flex-wrap">
-        <ul class="nav nav-pills" id="pills-tab" role="tablist">
-          <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab-add">Full-time</button></li>
-          <li class="nav-item"><button class="nav-link pt-tab" data-bs-toggle="pill" data-bs-target="#tab-pt">Part-time</button></li>
-          <li class="nav-item ms-4 border-start ps-4"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-report-ft">Report (FT)</button></li>
-          <li class="nav-item"><button class="nav-link pt-tab" data-bs-toggle="pill" data-bs-target="#tab-report-pt">Report (PT)</button></li>
-          <li class="nav-item ms-4 border-start ps-4"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab-sales" onclick="loadSalesSummary()">Sales Summary</button></li>
-        </ul>
-      </div>
-
-      <div class="tab-content">
-        <div class="tab-pane fade show active" id="tab-add">
-          <div class="custom-card">
-            <div class="card-header-custom"><span><i class="bi bi-person-fill me-2"></i> แบบฟอร์มบันทึก (Full-time)</span></div>
-            <div class="card-body p-4">
-              <form id="addForm" onsubmit="handleCreate(event)">
-                <div class="row g-3 mb-4">
-                  <div class="col-md-6"><label class="form-label">วันที่สมัคร *</label><input type="date" class="form-control" name="appDate" required></div>
-                  <div class="col-md-6"><label class="form-label">สาขา (Store) *</label><select class="form-select store-select" name="storeNo" required></select></div>
-                  <div class="col-md-6"><label class="form-label">ชื่อ-นามสกุล *</label><input type="text" class="form-control" name="candidateName" required></div>
-                  <div class="col-md-6"><label class="form-label">เบอร์โทรศัพท์ *</label><input type="tel" class="form-control" name="phoneNo" required></div>
-                  <div class="col-md-3"><label class="form-label">แผนก *</label><select class="form-select dept-select" id="addDeptSelect" name="department" onchange="updatePositionDropdown(this.value, 'addPosSelect')" required></select></div>
-                  <div class="col-md-3"><label class="form-label">ตำแหน่ง *</label><select class="form-select position-select" name="position" id="addPosSelect" disabled required></select></div>
-                  <div class="col-md-3"><label class="form-label">บริษัท *</label><select class="form-select company-select" name="company" required></select></div>
-                  <div class="col-md-3"><label class="form-label">ช่องทาง</label><select class="form-select source-select" name="applySource"></select></div>
-                </div>
-                <div class="row g-3 mb-4">
-                   <div class="col-md-3"><label class="form-label">วันที่สัมภาษณ์</label><input type="date" class="form-control" name="interviewDate"></div>
-                   <div class="col-md-3"><label class="form-label">สถานะสัมภาษณ์</label><select class="form-select interview-status-select" name="interviewStatus"></select></div>
-                   <div class="col-md-3"><label class="form-label">วันที่เริ่มงาน</label><input type="date" class="form-control" name="startDate"></div>
-                   <div class="col-md-3"><label class="form-label">สถานะเริ่มงาน</label><select class="form-select start-status-select" name="startStatus"></select></div>
-                   <div class="col-12"><label class="form-label">หมายเหตุ</label><textarea class="form-control" name="remark" rows="2"></textarea></div>
-                </div>
-                <div class="text-end"><button type="reset" class="btn btn-light me-2">ล้างค่า</button><button type="submit" class="btn btn-primary px-5">บันทึกข้อมูล (FT)</button></div>
-              </form>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-pt">
-            <div class="custom-card border-success">
-              <div class="card-header-custom"><span class="text-success"><i class="bi bi-clock-history me-2"></i> แบบฟอร์มบันทึก (Part-time)</span></div>
-              <div class="card-body p-4">
-                <form id="addFormPT" onsubmit="handleCreatePT(event)">
-                  <div class="row g-3 mb-4">
-                    <div class="col-md-6"><label class="form-label">วันที่</label><input type="date" class="form-control" name="ptDate" required></div>
-                    <div class="col-md-6"><label class="form-label">รหัสสาขา</label><select class="form-select pt-store-select" name="ptStoreNo" required></select></div>
-                    <div class="col-md-3"><label class="form-label text-success">แผนก</label><select class="form-select" name="ptDepartment" required><option value="Picker">Picker</option><option value="Loader">Loader</option></select></div>
-                    <div class="col-md-3"><label class="form-label">Find Temp</label><input type="number" class="form-control" name="ptFindTemp" min="0"></div>
-                    <div class="col-md-3"><label class="form-label">Student</label><input type="number" class="form-control" name="ptStudent" min="0"></div>
-                    <div class="col-md-3"><label class="form-label">Elderly</label><input type="number" class="form-control" name="ptElderly" min="0"></div>
-                  </div>
-                  <div class="text-end"><button type="reset" class="btn btn-light me-2">ล้างค่า</button><button type="submit" class="btn btn-success px-5">บันทึกข้อมูล (PT)</button></div>
-                </form>
-              </div>
-            </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-report-ft">
-          <div class="custom-card">
-            <div class="card-header-custom"><span>รายการข้อมูล Full-time</span></div>
-            <div class="card-body p-4">
-              <div class="row g-3 mb-4 align-items-end bg-light p-3 rounded">
-                <div class="col-md-2"><label class="form-label">เลือกสาขา</label><select id="filterStoreFT" class="form-select store-select"></select></div>
-                <div class="col-md-2"><label class="form-label">ผลสัมภาษณ์</label><select id="filterIntStatusFT" class="form-select interview-status-select" onchange="applyFiltersFT()"><option value="">-- ทั้งหมด --</option></select></div>
-                <div class="col-md-2"><label class="form-label">สถานะเริ่มงาน</label><select id="filterStartStatusFT" class="form-select start-status-select" onchange="applyFiltersFT()"><option value="">-- ทั้งหมด --</option></select></div>
-                <div class="col-md-4"><label class="form-label">ค้นหา</label><input type="text" id="searchInputFT" class="form-control" onkeyup="debounceSearchFT()"></div>
-                <div class="col-md-2"><button class="btn btn-primary w-100" onclick="loadReportFT()">ดึงข้อมูล</button></div>
-              </div>
-              <div class="table-wrapper" style="overflow-x:auto;">
-                <input type="hidden" id="rowsPerPageFT" value="50">
-                <table class="table-pro" id="dataTableFT">
-                  <thead><tr><th>วันที่</th><th>สาขา</th><th>ชื่อ-นามสกุล</th><th>เบอร์โทร</th><th>ตำแหน่ง</th><th>สถานะสัมภาษณ์</th><th>สถานะเริ่มงาน</th><th>หมายเหตุ</th><th>Action</th></tr></thead>
-                  <tbody id="reportBodyFT"><tr><td colspan="9" class="text-center py-5">กรุณาเลือกสาขาและกดปุ่ม "ดึงข้อมูล"</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-report-pt">
-            <div class="custom-card border-success">
-              <div class="card-header-custom"><span class="text-success">รายงานข้อมูล Part-time</span></div>
-              <div class="card-body p-4">
-                <div class="row g-3 mb-4 align-items-end bg-light p-3 rounded">
-                  <div class="col-md-5"><label class="form-label">เลือกสาขา</label><select id="filterStorePT" class="form-select pt-store-select"></select></div>
-                  <div class="col-md-5"><label class="form-label">ค้นหา</label><input type="text" id="searchInputPT" class="form-control" onkeyup="debounceSearchPT()"></div>
-                  <div class="col-md-2"><button class="btn btn-success w-100" onclick="loadReportPT()">ดึงข้อมูล</button></div>
-                </div>
-                <div class="table-wrapper">
-                  <table class="table-pro" id="dataTablePT">
-                    <thead><tr><th>วันที่</th><th>สาขา</th><th>แผนก</th><th>Find Temp</th><th>Student</th><th>Elderly</th><th>Action</th></tr></thead>
-                    <tbody id="reportBodyPT"><tr><td colspan="7" class="text-center py-5">กรุณาเลือกสาขาและกดปุ่ม "ดึงข้อมูล"</td></tr></tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-        </div>
-
-        <div class="tab-pane fade" id="tab-sales">
-          <div class="custom-card border-primary">
-            <div class="card-header-custom"><span class="text-primary fw-bold">สรุปข้อมูลผู้สมัคร</span></div>
-            <div class="card-body p-4">
-              <div class="row g-3 mb-4 bg-light p-3 rounded align-items-end">
-                <div class="col-md-3"><label class="form-label">ตั้งแต่วันที่</label><input type="date" id="salesStartDate" class="form-control"></div>
-                <div class="col-md-3"><label class="form-label">ถึงวันที่</label><input type="date" id="salesEndDate" class="form-control"></div>
-                <div class="col-md-6 d-flex gap-2"><button class="btn btn-primary w-100" onclick="loadSalesSummary()">ประมวลผล</button><button class="btn btn-success w-100" onclick="exportSalesSummary()">Excel</button></div>
-              </div>
-              <div class="table-wrapper">
-                <table class="table-pro">
-                  <thead><tr><th>วันที่สมัคร</th><th>รหัสสาขา</th><th>ชื่อสาขา</th><th>ชื่อ-นามสกุล</th><th>ตำแหน่ง</th><th>สถานะสัมภาษณ์</th><th>สถานะเริ่มงาน</th></tr></thead>
-                  <tbody id="salesDetailBody"><tr><td colspan="7" class="text-center py-5">กดปุ่ม "ประมวลผล" เพื่อดูข้อมูล</td></tr></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">แก้ไขข้อมูล (FT)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="editForm" onsubmit="handleUpdate(event)"><input type="hidden" name="rowId" id="editRowId"><div class="row g-3 mb-3"><div class="col-md-6"><label>สถานะสัมภาษณ์</label><select class="form-select interview-status-select" name="interviewStatus" id="editIntStatus"></select></div><div class="col-md-6"><label>สถานะเริ่มงาน</label><select class="form-select start-status-select" name="startStatus" id="editStartStatus"></select></div><div class="col-12"><label>หมายเหตุ</label><textarea class="form-control" name="remark" id="editRemark"></textarea></div></div><button type="submit" class="btn btn-warning w-100">บันทึก</button></form></div></div></div></div>
-    <div class="modal fade" id="editModalPT" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">แก้ไขข้อมูล (PT)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="editFormPT" onsubmit="handleUpdatePT(event)"><input type="hidden" name="rowId" id="editRowIdPT"><div class="row g-3 mb-3"><div class="col-md-4"><label>Find Temp</label><input type="number" class="form-control" name="ptFindTemp" id="editPtFindTemp"></div><div class="col-md-4"><label>Student</label><input type="number" class="form-control" name="ptStudent" id="editPtStudent"></div><div class="col-md-4"><label>Elderly</label><input type="number" class="form-control" name="ptElderly" id="editPtElderly"></div></div><button type="submit" class="btn btn-success w-100">บันทึก</button></form></div></div></div></div>
-
-    <div id="loading" class="loading-overlay"><div class="loader-content"><div class="spinner-border text-primary mb-3"></div><h5 class="fw-bold">กำลังประมวลผลจำลอง...</h5></div></div>
-</div>
-
-<div id="app-pro" class="app-section active">
-    <div id="root"></div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-<script>
-    // 🟢 ลิงก์ CSV ตัวใหม่ของคุณ (ตรงตาม 15 คอลัมน์)
-    const MOCK_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_vwj6Mr07U59dZvwMPy5XxAprRE-QRRQgod8zz1grwPMC5z24FnettJ8K0XHgqQJTfqOGy6FyT9mw/pub?gid=1702846553&single=true&output=csv";
-    window.mockDB = null;
-
-    async function initMockDB() {
-        if (window.mockDB) return window.mockDB;
-
-        const localData = localStorage.getItem('mock_db_data_v2');
-        if (localData) {
-            try { 
-                window.mockDB = JSON.parse(localData); 
-                return window.mockDB; 
-            } catch(e) {}
-        }
-        
-        document.getElementById('loading').style.display = 'block';
-        try {
-            const responseBuf = await fetch(MOCK_CSV_URL).then(res => res.arrayBuffer());
-            const wb = XLSX.read(responseBuf, {type: 'array'});
-            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: "" }); 
-            
-            json.forEach((row, idx) => { row.rowId = idx + 1; });
-            
-            window.mockDB = json;
-            localStorage.setItem('mock_db_data_v2', JSON.stringify(window.mockDB)); 
-        } catch (e) {
-            console.error("Mock DB Load Error:", e);
-            window.mockDB = [];
-        }
-        document.getElementById('loading').style.display = 'none';
-        return window.mockDB;
-    }
-    
-    function saveMockDB() {
-        localStorage.setItem('mock_db_data_v2', JSON.stringify(window.mockDB));
-    }
-
-    async function callAPI(actionName, dataPayload = {}) {
-        await initMockDB();
-        const rawData = window.mockDB;
-
-        if (actionName === 'getDropdowns') {
-            const stores = [...new Set(rawData.map(r => String(r.Store_No)))].filter(x=>x&&x!=='undefined');
-            const depts = [...new Set(rawData.map(r => String(r.Department)))].filter(x=>x&&x!=='undefined');
-            const companies = [...new Set(rawData.map(r => String(r.Company)))].filter(x=>x&&x!=='undefined');
-            const sources = [...new Set(rawData.map(r => String(r.Apply_Source)))].filter(x=>x&&x!=='undefined');
-            const intStatuses = [...new Set(rawData.map(r => String(r.Interview_Status)))].filter(x=>x&&x!=='undefined');
-            const startStatuses = [...new Set(rawData.map(r => String(r.Start_Status)))].filter(x=>x&&x!=='undefined');
-
-            const posMap = {};
-            rawData.forEach(r => {
-                if(r.Department && r.Position) {
-                    if(!posMap[r.Department]) posMap[r.Department] = new Set();
-                    posMap[r.Department].add(r.Position);
-                }
-            });
-            const formattedPosMap = {};
-            for(let key in posMap) formattedPosMap[key] = Array.from(posMap[key]);
-
-            return {
-                stores: stores.length ? stores : ["103", "70", "115"],
-                departments: depts.length ? depts : ["Picker", "Customer Service", "Bakery"],
-                companies: companies.length ? companies : ["ADC", "SML"],
-                sources: sources.length ? sources : ["Walk-in", "Facebook"],
-                interviewStatuses: intStatuses.length ? intStatuses : ["รอพิจารณาประวัติ", "ผ่านสัมภาษณ์"],
-                startStatuses: startStatuses.length ? startStatuses : ["รอเริ่มงาน", "มาเริ่มงาน"],
-                positionMap: formattedPosMap
-            };
-        }
-        
-        if (actionName === 'searchFT') {
-            const storeNo = dataPayload;
-            return rawData.filter(r => String(r.Store_No) === String(storeNo)).map(r => ({
-                rowId: r.rowId,
-                appDate: r.App_Date,
-                storeNo: r.Store_No,
-                candidateName: r.Candidate_Name,
-                phoneNo: r.Phone_No,
-                position: r.Position,
-                interviewStatus: r.Interview_Status,
-                startStatus: r.Start_Status,
-                remark: r.Remark
-            }));
-        }
-
-        if (actionName === 'searchPT') return []; 
-        if (actionName === 'exportData') return rawData; 
-
-        if (actionName === 'submitForm') {
-            const newRow = {
-                rowId: Date.now(),
-                App_Date: dataPayload.appDate,
-                Store_No: dataPayload.storeNo,
-                Candidate_Name: dataPayload.candidateName,
-                Phone_No: dataPayload.phoneNo,
-                Position: dataPayload.position,
-                Company: dataPayload.company,
-                Department: document.getElementById('addDeptSelect').value,
-                Apply_Source: dataPayload.applySource,
-                Interview_Date: dataPayload.interviewDate,
-                Interview_Status: dataPayload.interviewStatus,
-                Start_Date: dataPayload.startDate,
-                Start_Status: dataPayload.startStatus,
-                Remark: dataPayload.remark
-            };
-            window.mockDB.unshift(newRow); 
-            saveMockDB();
-            return { result: 'success' };
-        }
-
-        if (actionName === 'updateData') {
-             const row = window.mockDB.find(r => String(r.rowId) === String(dataPayload.rowId));
-             if(row) {
-                 row.Interview_Status = dataPayload.interviewStatus;
-                 row.Start_Status = dataPayload.startStatus;
-                 row.Remark = dataPayload.remark;
-                 saveMockDB();
-             }
-             return { result: 'success' };
-        }
-        
-        if (actionName === 'deleteData') {
-            window.mockDB = window.mockDB.filter(r => String(r.rowId) !== String(dataPayload.rowId));
-            saveMockDB();
-            return { result: 'success' };
-        }
-
-        return { result: 'success' };
-    }
-
-    function switchApp(appType) {
-        if(appType === 'main') {
-            document.getElementById('app-main').classList.add('active'); document.getElementById('app-pro').classList.remove('active');
-            document.getElementById('btn-show-main').className = 'btn btn-primary fw-bold px-4'; document.getElementById('btn-show-pro').className = 'btn btn-outline-light fw-bold px-4 text-dark';
-        } else {
-            document.getElementById('app-main').classList.remove('active'); document.getElementById('app-pro').classList.add('active');
-            document.getElementById('btn-show-main').className = 'btn btn-outline-light fw-bold px-4 text-dark'; document.getElementById('btn-show-pro').className = 'btn btn-primary fw-bold px-4';
-        }
-    }
-
-    setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}), 1000);
-    let globalPositionMap = {}; let rawDataFT = []; let filteredDataFT = []; let currentPageFT = 1; let salesFilteredData = [];
-    const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 3000 });
-    function showToast(icon, title) { Toast.fire({ icon: icon, title: title }); }
-    function escapeHTML(str) { if (str === null || str === undefined) return ''; return String(str).replace(/[&<>'"]/g, tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)); }
-
-    window.onload = async function() {
-      const today = new Date();
-      document.querySelector('#addForm input[name="appDate"]').valueAsDate = today;
-      document.querySelector('#addFormPT input[name="ptDate"]').valueAsDate = today;
-      if(document.getElementById('salesStartDate')) document.getElementById('salesStartDate').value = `${today.getFullYear()}-01-01`;
-      if(document.getElementById('salesEndDate')) document.getElementById('salesEndDate').valueAsDate = today;
-      try { const data = await callAPI("getDropdowns"); initDropdowns(data); } catch(err) { console.error(err); }
+    const initData = {
+      branches: [
+        { code: "103", name: "Nan", area: "Area 1" },
+        { code: "70", name: "Sukhothai", area: "Area 1" },
+        { code: "115", name: "Bang Bua Thong", area: "Area 2" }
+      ],
+      tas: ["Recruiter 1", "Recruiter 2", "TA_Admin"],
+      positions: [
+        { position: "ADC - Picker", recruit: "", area: "" },
+        { position: "Staff 1 - Checker", recruit: "", area: "" },
+        { position: "PC-Dry Food 2", recruit: "", area: "" }
+      ],
+      statuses: ['รอพิจารณาประวัติ', 'ผ่านสัมภาษณ์', 'รอผลสัมภาษณ์', 'ติดต่อผู้สมัครไม่ได้', 'อยู่ระหว่างนัดสัมภาษณ์', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ', 'รอเริ่มงาน', 'อื่นๆ', 'มาเริ่มงาน', 'ไม่มาเริ่มงาน'],
+      vacancyStatuses: ['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed'],
+      applicants: applicants,
+      vacancies: vacancies
     };
 
-    function initDropdowns(data) {
-      if(!data) return;
-      globalPositionMap = data.positionMap || {};
-      fillSelects('dept-select', data.departments); fillSelects('store-select', data.stores); fillSelects('source-select', data.sources); fillSelects('company-select', data.companies); fillSelects('start-status-select', data.startStatuses); fillSelects('pt-store-select', data.partTimeStores || []); fillSelects('interview-status-select', data.interviewStatuses);
-      const emptyOption = '<option value="##EMPTY##" class="text-danger fw-bold">-- (ว่าง) / - --</option>';
-      const intStatusSelect = document.getElementById('filterIntStatusFT'); const startStatusSelect = document.getElementById('filterStartStatusFT');
-      if(intStatusSelect) intStatusSelect.insertAdjacentHTML('beforeend', emptyOption);
-      if(startStatusSelect) startStatusSelect.insertAdjacentHTML('beforeend', emptyOption);
+    return ContentService.createTextOutput(JSON.stringify(initData)).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  return HtmlService.createHtmlOutput("<h1>HR Portal API is Running</h1><p>ระบบทำงานปกติ กรุณาใช้งานผ่านหน้าเว็บ</p>");
+}
+
+// ---------------------------------------------------------
+// 3. HTTP POST (สำหรับรับคำสั่งทั้งหมดจากหน้าเว็บ)
+// ---------------------------------------------------------
+function doPost(e) {
+  let response = { status: 'error', message: 'Unknown error' };
+  
+  try {
+    initSheets();
+    const body = JSON.parse(e.postData.contents);
+    const action = body.action;
+    const payload = body.payload || body; 
+
+    // --- กลุ่มคำสั่งของระบบ MAIN (Full-time & Part-time) ---
+    if (action === 'getDropdowns') {
+      const dropDowns = {
+        stores: ["103", "70", "115", "60", "101", "136"],
+        departments: ["Picker", "Customer Service", "Dry Food 2", "Bakery"],
+        companies: ["ADC", "SML", "Makro"],
+        sources: ["Walk-in at Store", "Facebook (Makro Job)", "กลุ่ม Facebook", "Tiktok", "พนักงานแนะนำ", "กรมจัดหางาน/จัดหางานจังหวัด"],
+        interviewStatuses: ["รอพิจารณาประวัติ", "ผ่านสัมภาษณ์", "รอผลสัมภาษณ์", "ไม่ผ่านสัมภาษณ์", "สำรอง/เก็บไว้พิจารณา", "ตรวจสุขภาพ", "ติดต่อไม่ได้/ไม่มาตามนัด"],
+        startStatuses: ["รอเริ่มงาน", "มาเริ่มงาน", "ไม่มาเริ่มงาน"],
+        partTimeStores: ["103", "70", "115"],
+        positionMap: {
+          "Picker": ["ADC - Picker"],
+          "Customer Service": ["Staff 1 - Checker", "Staff 1 - Cashier"],
+          "Dry Food 2": ["PC-Dry Food 2"],
+          "Bakery": ["Staff 1 - Bakery"]
+        }
+      };
+      response = { status: 'success', data: dropDowns };
+    } 
+    else if (action === 'searchFT') {
+      const data = getSheetDataAsJSON(SHEET_NAMES.FT);
+      const filtered = data.filter(r => String(r.Store_No) === String(payload)).map(r => ({
+        rowId: r.rowId, appDate: r.App_Date, storeNo: r.Store_No, candidateName: r.Candidate_Name,
+        phoneNo: r.Phone_No, position: r.Position, interviewStatus: r.Interview_Status,
+        startStatus: r.Start_Status, remark: r.Remark
+      }));
+      response = { status: 'success', data: filtered };
     }
-    function fillSelects(className, items) { document.querySelectorAll('.' + className).forEach(sel => { let currentVal = sel.value; sel.innerHTML = '<option value="">-- เลือก --</option>'; if(items) items.forEach(item => sel.innerHTML += `<option value="${escapeHTML(item)}">${escapeHTML(item)}</option>`); if(currentVal) sel.value = currentVal; }); }
-    function updatePositionDropdown(selectedDept, targetId) { const sel = document.getElementById(targetId); let currentVal = sel.value; sel.innerHTML = '<option value="">-- กรุณาเลือก --</option>'; if (selectedDept && globalPositionMap[selectedDept]) { sel.disabled = false; globalPositionMap[selectedDept].forEach(p => sel.innerHTML += `<option value="${escapeHTML(p)}">${escapeHTML(p)}</option>`); if(currentVal) sel.value = currentVal; } else { sel.disabled = true; } }
-
-    let debounceTimerFT; function debounceSearchFT() { clearTimeout(debounceTimerFT); debounceTimerFT = setTimeout(() => { applyFiltersFT(); }, 300); }
-
-    async function loadReportFT() {
-        const storeNo = document.getElementById('filterStoreFT').value; if (!storeNo) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาก่อน', 'warning');
-        document.getElementById('loading').style.display = 'block';
-        try { rawDataFT = await callAPI("searchFT", storeNo) || []; document.getElementById('loading').style.display = 'none'; currentPageFT = 1; applyFiltersFT(); } catch(err) { document.getElementById('loading').style.display = 'none'; Swal.fire('Error', err.message, 'error'); }
+    else if (action === 'searchPT') {
+      const data = getSheetDataAsJSON(SHEET_NAMES.PT);
+      const filtered = data.filter(r => String(r.Store_No) === String(payload)).map(r => ({
+        rowId: r.rowId, ptDate: r.PT_Date, ptStoreNo: r.Store_No, ptDepartment: r.Department,
+        ptFindTemp: r.Find_Temp, ptStudent: r.Student, ptElderly: r.Elderly
+      }));
+      response = { status: 'success', data: filtered };
+    }
+    else if (action === 'exportData') {
+      response = { status: 'success', data: getSheetDataAsJSON(SHEET_NAMES.FT) };
+    }
+    else if (action === 'submitForm') {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAMES.FT);
+      const newRowId = "FT_" + Date.now().toString();
+      sheet.appendRow([
+        newRowId, payload.appDate, payload.storeNo, "", payload.candidateName, payload.phoneNo, 
+        payload.position, payload.company, payload.department, payload.applySource, 
+        payload.interviewDate, payload.interviewStatus, payload.startDate, payload.startStatus, payload.remark
+      ]);
+      response = { status: 'success', data: { result: 'success', rowId: newRowId } };
+    }
+    else if (action === 'submitPartTimeForm') {
+      const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAMES.PT);
+      const newRowId = "PT_" + Date.now().toString();
+      sheet.appendRow([
+        newRowId, payload.ptDate, payload.ptStoreNo, payload.ptDepartment, 
+        payload.ptFindTemp, payload.ptStudent, payload.ptElderly
+      ]);
+      response = { status: 'success', data: { result: 'success', rowId: newRowId } };
+    }
+    else if (action === 'updateData') {
+      updateRowById(SHEET_NAMES.FT, payload.rowId, {
+        "Interview_Status": payload.interviewStatus,
+        "Start_Status": payload.startStatus,
+        "Remark": payload.remark
+      });
+      response = { status: 'success', data: { result: 'success' } };
+    }
+    else if (action === 'updatePartTimeData') {
+      updateRowById(SHEET_NAMES.PT, payload.rowId, {
+        "Find_Temp": payload.ptFindTemp,
+        "Student": payload.ptStudent,
+        "Elderly": payload.ptElderly
+      });
+      response = { status: 'success', data: { result: 'success' } };
+    }
+    else if (action === 'deleteData') {
+      const sheetName = payload.type === 'FT' ? SHEET_NAMES.FT : SHEET_NAMES.PT;
+      deleteRowById(sheetName, payload.rowId);
+      response = { status: 'success', data: { result: 'success' } };
     }
 
-    function applyFiltersFT() {
-        const searchText = document.getElementById('searchInputFT').value.toUpperCase();
-        const filterInt = document.getElementById('filterIntStatusFT').value; const filterStart = document.getElementById('filterStartStatusFT').value;
-        filteredDataFT = rawDataFT.filter(row => {
-            const strRow = Object.values(row).join(" ").toUpperCase(); const matchName = strRow.includes(searchText);
-            let matchInt = true; if (filterInt === "##EMPTY##") { matchInt = (!row.interviewStatus || row.interviewStatus === "" || row.interviewStatus === "-"); } else if (filterInt !== "") { matchInt = (row.interviewStatus === filterInt); }
-            let matchStart = true; if (filterStart === "##EMPTY##") { matchStart = (!row.startStatus || row.startStatus === "" || row.startStatus === "-"); } else if (filterStart !== "") { matchStart = (row.startStatus === filterStart); }
-            return matchName && matchInt && matchStart;
-        });
-        currentPageFT = 1; renderTableFT();
+    // --- 🟢 กลุ่มคำสั่งของระบบ PRO EDITION (React) ---
+    else if (action === 'saveAll') {
+      // 1. อัปเดตตำแหน่งงาน (Vacancies)
+      if (payload.vacancies) {
+        syncVacancies(payload.vacancies);
+      }
+      
+      // 2. อัปเดตข้อมูลผู้สมัคร (Applicants) 
+      // 🟢 เพิ่มส่วนนี้แล้ว ข้อมูลจาก Pro จะวิ่งเข้า Sheet Applicants_FT 
+      if (payload.applicants) {
+        syncApplicants(payload.applicants);
+      }
+      
+      response = { status: 'success', data: { result: 'success' } };
     }
-
-    function renderTableFT() {
-        const tbody = document.getElementById('reportBodyFT'); tbody.innerHTML = '';
-        if (filteredDataFT.length === 0) { tbody.innerHTML = '<tr><td colspan="9" class="text-center py-5">ไม่พบข้อมูล</td></tr>'; return; }
-        const rowsPerPage = 50; const startIndex = (currentPageFT - 1) * rowsPerPage; const endIndex = startIndex + rowsPerPage; const pageData = filteredDataFT.slice(startIndex, endIndex);
-        pageData.forEach(row => {
-              const rowJson = JSON.stringify(row).replace(/"/g, '&quot;');
-              tbody.innerHTML += `<tr>
-                  <td>${formatDate(row.appDate)}</td><td>${escapeHTML(row.storeNo)}</td><td class="fw-bold text-primary">${escapeHTML(row.candidateName)}</td><td>${escapeHTML(row.phoneNo)}</td>
-                  <td>${escapeHTML(row.position)}</td><td>${escapeHTML(row.interviewStatus || '-')}</td><td>${escapeHTML(row.startStatus || '-')}</td><td class="small text-muted text-truncate" style="max-width: 150px;">${escapeHTML(row.remark || '-')}</td>
-                  <td class="text-center"><button class="btn btn-sm btn-light border" onclick="openEditModal(${rowJson})"><i class="bi bi-pencil-square text-warning"></i></button><button class="btn btn-sm btn-light border ms-1" onclick="handleDelete(${row.rowId}, '${escapeHTML(row.candidateName)}', 'FT')"><i class="bi bi-trash3 text-danger"></i></button></td></tr>`;
-        });
+    else if (action === 'deleteRecord') {
+      if(body.sheetName === 'Vacancies') {
+        deleteRowById(SHEET_NAMES.VACANCY, body.recordId, "id");
+      } else {
+        deleteRowById(SHEET_NAMES.FT, body.recordId, "rowId");
+      }
+      response = { status: 'success', data: { result: 'success' } };
     }
-
-    async function loadSalesSummary() {
-      document.getElementById('loading').style.display = 'block'; 
-      try {
-          const data = await callAPI("exportData", 'FT'); document.getElementById('loading').style.display = 'none'; if (!data || data.length === 0) return;
-          salesFilteredData = data; renderSalesTable(salesFilteredData);
-      } catch (err) { document.getElementById('loading').style.display = 'none'; }
+    else if (action === 'sendLineNotify') {
+      const options = {
+        method: 'post',
+        headers: { 'Authorization': 'Bearer ' + body.lineToken },
+        payload: { 'message': body.message }
+      };
+      UrlFetchApp.fetch('https://notify-api.line.me/api/notify', options);
+      response = { status: 'success', data: { result: 'success' } };
     }
-
-    function renderSalesTable(dataList) {
-        const tbody = document.getElementById('salesDetailBody'); let tableHtml = '';
-        if(dataList.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5">ไม่พบข้อมูล</td></tr>'; return; }
-        dataList.forEach(row => {
-              tableHtml += `<tr><td>${escapeHTML(row['App_Date'] || row['appdate'])}</td><td>${escapeHTML(row['Store_No'] || row['storeno'])}</td><td>${escapeHTML(row['Store_Name'] || '-')}</td><td class="fw-bold text-primary">${escapeHTML(row['Candidate_Name'] || row['candidatename'])}</td><td>${escapeHTML(row['Position'] || row['position'])}</td><td>${escapeHTML(row['Interview_Status'] || '-')}</td><td>${escapeHTML(row['Start_Status'] || '-')}</td></tr>`;
-        });
-        tbody.innerHTML = tableHtml;
+    else {
+      response = { status: 'error', error: 'Action not found: ' + action };
     }
+  } catch (err) {
+    response = { status: 'error', error: err.toString(), stack: err.stack };
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify(response)).setMimeType(ContentService.MimeType.JSON);
+}
 
-    function exportSalesSummary() {
-       if(!salesFilteredData || salesFilteredData.length === 0) return alert("โปรดกดปุ่มประมวลผลก่อน");
-       const ws = XLSX.utils.json_to_sheet(salesFilteredData); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, `Sales_Export_${new Date().getTime()}.xlsx`);
-    }
+// ---------------------------------------------------------
+// 4. HELPER FUNCTIONS (ฟังก์ชันช่วยเหลือ)
+// ---------------------------------------------------------
 
-    function handleCreate(e) { e.preventDefault(); submitData('addForm', 'submitForm', 'บันทึกสำเร็จ'); }
-    function handleCreatePT(e) { e.preventDefault(); submitData('addFormPT', 'submitForm', 'บันทึก PT สำเร็จ'); }
-    function handleUpdate(e) { e.preventDefault(); submitData('editForm', 'updateData', 'แก้ไขสำเร็จ', true, 'FT'); }
-    function handleUpdatePT(e) { e.preventDefault(); submitData('editFormPT', 'updateData', 'แก้ไข PT สำเร็จ', true, 'PT'); }
-
-    async function submitData(formId, actionName, msg, isUpdate = false, type = 'FT') {
-      document.getElementById('loading').style.display = 'block'; const obj = {}; new FormData(document.getElementById(formId)).forEach((v, k) => obj[k] = v);
-      try { await callAPI(actionName, obj); document.getElementById('loading').style.display = 'none'; showToast('success', msg); if(isUpdate) { if(formId === 'editFormPT') { bootstrap.Modal.getInstance(document.getElementById('editModalPT')).hide(); loadReportPT(); } else { bootstrap.Modal.getInstance(document.getElementById('editModal')).hide(); loadReportFT(); } } else { document.getElementById(formId).reset(); } } catch(err) { document.getElementById('loading').style.display = 'none'; }
-    }
-
-    function handleDelete(rowId, name, type) { Swal.fire({ title: 'ลบข้อมูลจำลอง?', text: `ยืนยันการลบ: ${name}`, icon: 'warning', showCancelButton: true }).then(async (result) => { if (result.isConfirmed) { document.getElementById('loading').style.display = 'block'; try { await callAPI("deleteData", {rowId: rowId, type: type}); document.getElementById('loading').style.display = 'none'; showToast('success', 'ลบสำเร็จ'); if(type === 'FT') loadReportFT(); else loadReportPT(); } catch(err) { document.getElementById('loading').style.display = 'none'; } } }); }
-
-    function openEditModal(data) { document.getElementById('editRowId').value = data.rowId; document.getElementById('editIntStatus').value = data.interviewStatus; document.getElementById('editStartStatus').value = data.startStatus; document.getElementById('editRemark').value = data.remark; new bootstrap.Modal(document.getElementById('editModal')).show(); }
-    function openEditModalPT(data) { document.getElementById('editRowIdPT').value = data.rowId; document.getElementById('editPtFindTemp').value = data.ptFindTemp; document.getElementById('editPtStudent').value = data.ptStudent; document.getElementById('editPtElderly').value = data.ptElderly; new bootstrap.Modal(document.getElementById('editModalPT')).show(); }
-
-    function formatDate(isoDate) { if(!isoDate) return "-"; const d = new Date(isoDate); if(isNaN(d.getTime())) return isoDate; return d.toLocaleDateString('en-GB'); }
-</script>
-
-<script type="text/babel" data-presets="react,env">
-    const { useState, useMemo, useEffect } = React;
-    const { createRoot } = ReactDOM;
-    
-    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons
-    const Icon = ({ name, size = 16, className = '', title = '' }) => (
-      <i className={`bi bi-${name} ${className} inline-block`} style={{ fontSize: size, lineHeight: 1 }} title={title}></i>
-    );
-
-    const STATUS_COLORS = { 'รอพิจารณาประวัติ': '#06B6D4', 'ผ่านสัมภาษณ์': '#10B981', 'รอผลสัมภาษณ์': '#3B82F6', 'ติดต่อผู้สมัครไม่ได้': '#64748B', 'อยู่ระหว่างนัดสัมภาษณ์': '#F59E0B', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด': '#EF4444', 'ไม่ผ่านสัมภาษณ์': '#DC2626', 'ไม่มีตำแหน่งงานว่าง': '#94A3B8', 'สำรอง/เก็บไว้พิจารณา': '#8B5CF6', 'ตรวจสุขภาพ': '#06B6D4', 'รอเริ่มงาน': '#0EA5E9', 'อื่นๆ': '#F97316' };
-    const VACANCY_COLORS = { 'Vacant': '#F59E0B', 'Promote&Transfer': '#8B5CF6', 'Promote&Transfer Done': '#10B981', 'Hold': '#64748B', 'Closed': '#94A3B8', 'รอตรวจสุขภาพ': '#06B6D4', 'Waiting to Join': '#0EA5E9', 'Hired': '#10B981' };
-
-    const parseDateToMs = (val) => {
-      if (!val) return null; let cleanStr = String(val).replace(/,/g, '').trim(); let num = Number(cleanStr);
-      if (!isNaN(num) && num > 1000000000000) return num;
-      if (!isNaN(num) && num > 30000 && num < 100000) return new Date(Math.round((num - 25569) * 86400 * 1000)).getTime();
-      let d = new Date(val); if (!isNaN(d.getTime())) return d.getTime();
-      if (typeof val === 'string' && (val.includes('/') || val.includes('-'))) {
-        let datePart = val.split(' ')[0]; let parts = datePart.includes('/') ? datePart.split('/') : datePart.split('-');
-        if (parts.length >= 2) {
-          let p1 = parseInt(parts[0], 10), p2 = parseInt(parts[1], 10), p3 = parts.length === 3 ? parseInt(parts[2], 10) : new Date().getFullYear();
-          let day = p1, month = p2 - 1, year = p3;
-          if (p1 > 1000) { year = p1; month = p2 - 1; day = parts.length === 3 ? parseInt(parts[2], 10) : 1; }
-          if (year > 2500) year -= 543; 
-          if (year >= 2000) { let d2 = new Date(year, month, day); if (!isNaN(d2.getTime())) return d2.getTime(); }
+function updateRowById(sheetName, rowId, updateFields, idColumnName = "rowId") {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) return;
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idIndex = headers.indexOf(idColumnName);
+  
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idIndex]) === String(rowId)) {
+      for (const [key, value] of Object.entries(updateFields)) {
+        const colIndex = headers.indexOf(key);
+        if (colIndex > -1) {
+          sheet.getRange(i + 1, colIndex + 1).setValue(value);
         }
       }
-      return null;
-    };
-
-    const getConsistentTimestamp = () => {
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    };
-
-    const StatusBadge = ({ status }) => (
-      <span className="px-2.5 py-1 rounded-lg shadow-sm border text-[10px] font-extrabold"
-            style={{ backgroundColor: (STATUS_COLORS[status] || '#cbd5e1') + '15', color: STATUS_COLORS[status] || '#64748b', borderColor: (STATUS_COLORS[status] || '#cbd5e1') + '30' }}>
-        {status}
-      </span>
-    );
-
-    const VacancyBadge = ({ status }) => {
-      const displayStatus = status === 'Promote&Transfer Done' ? 'Promote Done' : status.includes('Promote') ? 'Promote' : status;
-      return (
-        <span className="px-2 py-0.5 rounded text-[10px] font-bold shadow-sm inline-block text-center w-24"
-              style={{ backgroundColor: (VACANCY_COLORS[status] || '#cbd5e1') + '15', color: VACANCY_COLORS[status] || '#64748b', border: `1px solid ${(VACANCY_COLORS[status] || '#cbd5e1')}30` }}>
-          {displayStatus}
-        </span>
-      );
-    };
-
-    function App() {
-      const [activeTab, setActiveTab] = useState('dashboard');
-      const [isLoading, setIsLoading] = useState(true); 
-      const [isSaving, setIsSaving] = useState(false); 
-      const [isSendingLine, setIsSendingLine] = useState(false);
-      const [cloudStatus, setCloudStatus] = useState('loading'); 
-      const [appBranches, setAppBranches] = useState([]);
-      const [appAreas, setAppAreas] = useState([]);
-      const [appTAs, setAppTAs] = useState([]);
-      const [appPositions, setAppPositions] = useState([]);
-      const [appStatuses, setAppStatuses] = useState(['รอพิจารณาประวัติ', 'ผ่านสัมภาษณ์', 'รอผลสัมภาษณ์', 'ติดต่อผู้สมัครไม่ได้', 'อยู่ระหว่างนัดสัมภาษณ์', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ', 'รอเริ่มงาน', 'อื่นๆ']);
-      const [appVacancyStatuses, setAppVacancyStatuses] = useState(['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed']);
-      const [showSettings, setShowSettings] = useState(false);
-      const [selectedTA, setSelectedTA] = useState('');
-      const [recruitAreaFilter, setRecruitAreaFilter] = useState('');
-      const [recruitBranchFilter, setRecruitBranchFilter] = useState('');
-      const [addingApplicantFor, setAddingApplicantFor] = useState(null);
-      const [formData, setFormData] = useState({ name: '', phone: '', source: 'Walk-in at Store', status: '', comment: '', startDate: '', resumeName: '', resumeBase64: '' });
-      const [applicants, setApplicants] = useState([]);
-      const [editAppId, setEditAppId] = useState(null);
-      const [editAppForm, setEditAppForm] = useState({});
-      const [previewFile, setPreviewFile] = useState(null);
-      const [selectedAreas, setSelectedAreas] = useState([]);
-      const [vacancyForm, setVacancyForm] = useState({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' });
-      const [viewApplicants, setViewApplicants] = useState(null);
-      const [vacancies, setVacancies] = useState([]);
-      const [editVacId, setEditVacId] = useState(null);
-      const [editVacForm, setEditVacForm] = useState({});
-      const [dashboardTA, setDashboardTA] = useState('ALL');
-      const [dashboardDetailModal, setDashboardDetailModal] = useState(null);
-      const [vacancyPositionFilter, setVacancyPositionFilter] = useState('');
-      const [vacancyBranchFilter, setVacancyBranchFilter] = useState('');
-      const [dashboardSelectedAreas, setDashboardSelectedAreas] = useState([]);
-      const [dashboardBranchFilter, setDashboardBranchFilter] = useState('');
-      const [dashboardPositionFilter, setDashboardPositionFilter] = useState('');
-      const [expandedBranches, setExpandedBranches] = useState({});
-      const [expandedAreas, setExpandedAreas] = useState({});
-
-      const uniquePositionNames = useMemo(() => [...new Set(appPositions.map(p => p.position))], [appPositions]);
-
-      const toggleBranch = (bCode) => { setExpandedBranches(prev => ({ ...prev, [bCode]: !prev[bCode] })); };
-      const toggleDashboardAreaRow = (areaName) => { setExpandedAreas(prev => ({ ...prev, [areaName]: !prev[areaName] })); };
-      const handleToggleDashboardArea = (area) => { setDashboardSelectedAreas(prev => prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]); };
-      const handleClearAllAreas = () => { setDashboardSelectedAreas([]); };
-
-      useEffect(() => { if (dashboardSelectedAreas.length === 0) { setDashboardBranchFilter(''); setDashboardPositionFilter(''); } }, [dashboardSelectedAreas]);
-
-      const getVacancyInsights = (v) => {
-        const matchedApplicants = applicants.filter(app => String(app.branchCode) === String(v.branchCode) && String(app.position) === String(v.position));
-        const applicantCount = matchedApplicants.length;
-        let computedStatus = v.manualStatus;
-        if (v.manualStatus === 'Vacant') {
-          let hasHired = false, hasWaitingToJoin = false, hasHealthCheck = false;
-          const today = new Date(); today.setHours(0,0,0,0);
-          matchedApplicants.forEach(app => {
-            if (app.status === 'ผ่านสัมภาษณ์') hasHired = true;
-            if (app.status === 'รอเริ่มงาน') { if (app.startDate) { const sDate = new Date(app.startDate); sDate.setHours(0,0,0,0); if (today >= sDate) hasHired = true; else hasWaitingToJoin = true; } else hasWaitingToJoin = true; }
-            if (app.status === 'ตรวจสุขภาพ') hasHealthCheck = true;
-          });
-          if (hasHired) computedStatus = 'Hired'; else if (hasWaitingToJoin) computedStatus = 'Waiting to Join'; else if (hasHealthCheck) computedStatus = 'รอตรวจสุขภาพ';
-        }
-        let slaEndTime = Date.now();
-        const hiredApps = matchedApplicants.filter(app => { return ['ผ่านสัมภาษณ์', 'รอเริ่มงาน'].includes(app.status); });
-        if (hiredApps.length > 0) { slaEndTime = Math.min(...hiredApps.map(a => parseDateToMs(a.updatedAt) || parseDateToMs(a.timestamp) || parseDateToMs(a.id) || Date.now())); }
-        let startMs = parseDateToMs(v.createdAt) || parseDateToMs(v.timestamp) || parseDateToMs(v.id) || Date.now();
-        const slaDays = Math.max(0, Math.floor((slaEndTime - startMs) / (1000 * 60 * 60 * 24))) || 0;
-        return { applicantCount, computedStatus, slaDays, matchedApplicants };
-      };
-
-      // 🟢 ดึงข้อมูลผ่านระบบ Mock DB ที่เชื่อมกับ CSV ตัวใหม่ 15 คอลัมน์
-      const fetchFreshData = async () => {
-        await window.initMockDB();
-        const rawData = window.mockDB;
-        
-        const branchMap = {};
-        rawData.forEach(r => {
-            if(r.Store_No && !branchMap[r.Store_No]) {
-                const codeNum = parseInt(r.Store_No) || 0;
-                const mockArea = 'Area ' + ((codeNum % 4) + 1);
-                branchMap[r.Store_No] = { code: String(r.Store_No).padStart(3, '0'), name: r.Store_Name || 'สาขา ' + r.Store_No, area: mockArea };
-            }
-        });
-        const branches = Object.values(branchMap);
-
-        const positions = [...new Set(rawData.map(r => r.Position))].filter(x=>x&&x!=='undefined').map(p => ({ position: p, recruit: 'TA_Test', area: '' }));
-
-        // Mapping 15 คอลัมน์จาก CSV
-        const loadedApps = rawData.map(r => ({
-            id: String(r.rowId),
-            branchCode: String(r.Store_No).padStart(3, '0'),
-            branchName: r.Store_Name || 'สาขา ' + r.Store_No,
-            position: r.Position,
-            name: r.Candidate_Name,
-            phone: r.Phone_No,
-            source: r.Apply_Source,
-            status: (r.Start_Status && r.Start_Status !== 'undefined' && r.Start_Status !== "") ? r.Start_Status : ((r.Interview_Status && r.Interview_Status !== 'undefined' && r.Interview_Status !== "") ? r.Interview_Status : 'รอพิจารณาประวัติ'),
-            comment: r.Remark,
-            startDate: r.Start_Date,
-            ta: 'TA_Test',
-            timestamp: r.App_Date,
-            updatedAt: Date.now() - Math.floor(Math.random() * 100000)
-        }));
-
-        const data = {
-            branches: branches.length > 0 ? branches : [{ code: '001', name: 'สาขาทดสอบ', area: 'Area 1' }],
-            tas: ['TA_Test', 'TA_Admin'],
-            positions: positions.length > 0 ? positions : [{ position: 'พนักงานขาย', recruit: 'TA_Test', area: '' }],
-            statuses: ['รอพิจารณาประวัติ', 'ผ่านสัมภาษณ์', 'รอผลสัมภาษณ์', 'ติดต่อผู้สมัครไม่ได้', 'อยู่ระหว่างนัดสัมภาษณ์', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ', 'รอเริ่มงาน', 'อื่นๆ', 'มาเริ่มงาน', 'ไม่มาเริ่มงาน'],
-            vacancyStatuses: ['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed'],
-            applicants: loadedApps,
-            vacancies: JSON.parse(localStorage.getItem('hr_vacancies') || '[]')
-        };
-
-        setAppBranches(data.branches);
-        setAppTAs(data.tas);
-        setAppPositions(data.positions);
-        setAppStatuses(data.statuses);
-        setAppVacancyStatuses(data.vacancyStatuses);
-        setApplicants(data.applicants);
-        setVacancies(data.vacancies);
-        
-        return data;
-      };
-
-      useEffect(() => {
-        const initLoad = async () => {
-          setIsLoading(true); setCloudStatus('loading');
-          try {
-            await fetchFreshData(); 
-            setCloudStatus('connected');
-          } catch (e) {
-            setCloudStatus('error');
-            console.error(e);
-          }
-          setIsLoading(false);
-        };
-        initLoad();
-      }, []);
-
-      useEffect(() => {
-        if (appBranches.length > 0) {
-          const uniqueAreas = [...new Set(appBranches.map(b => String(b.area).trim()))].filter(a => a).sort((a,b) => { const numA = parseInt(a.replace(/\D/g, '')) || 0; const numB = parseInt(b.replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; return a.localeCompare(b, 'th'); });
-          setAppAreas(uniqueAreas);
-        }
-      }, [appBranches]);
-
-      const handleViewResume = (e, fileData, fileName) => {
-        if (e) e.stopPropagation();
-        if (!fileData || fileData === 'Uploaded') return;
-        const fileString = String(fileData);
-        if (fileString.startsWith('Error')) { alert('เกิดข้อผิดพลาด: \n' + fileString); } 
-        else { let embedUrl = fileString; if (fileString.includes('drive.google.com')) { embedUrl = fileString.replace(/\/view.*/, '/preview'); } setPreviewFile({ name: fileName || 'Resume', base64: embedUrl, originalUrl: fileString }); }
-      };
-
-      const syncToCloud = async (newApps, newVacs, forceSync = false) => {
-        const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
-        try { localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal)); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs)); } catch (err) {}
-        setCloudStatus('syncing');
-        setTimeout(() => setCloudStatus('connected'), 600);
-      };
-
-      const exportDashboardToPDF = () => {
-        const element = document.getElementById('dashboard-export-area');
-        if (!element) return;
-        const buttonsToHide = document.querySelectorAll('.hide-on-pdf'); buttonsToHide.forEach(btn => btn.style.display = 'none');
-        const opt = { margin: [0.3, 0.3, 0.3, 0.3], filename: `HR_Report_${getConsistentTimestamp().replace(/[:\/ ]/g, '_')}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, logging: false }, jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' } };
-        window.html2pdf().set(opt).from(element).save().then(() => { buttonsToHide.forEach(btn => btn.style.display = ''); });
-      };
-
-      const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-      const handleFileUpload = (e) => { const file = e.target.files[0]; if (file) { if (file.size > 3145728) { alert("ไฟล์ใหญ่เกินไป"); e.target.value = ''; return; } const reader = new FileReader(); reader.onloadend = () => setFormData(prev => ({ ...prev, resumeBase64: reader.result, resumeName: file.name })); reader.readAsDataURL(file); } };
-      const handleEditFileUpload = (e) => { const file = e.target.files[0]; if (file) { if (file.size > 3145728) { alert("ไฟล์ใหญ่เกินไป"); e.target.value = ''; return; } const reader = new FileReader(); reader.onloadend = () => { setEditAppForm(prev => ({ ...prev, resumeBase64: reader.result, resumeName: file.name })); }; reader.readAsDataURL(file); } };
-      
-      const handleRecruitSubmit = async (e) => {
-        e.preventDefault();
-        if (!selectedTA || !addingApplicantFor) return;
-        if (formData.status === 'รอเริ่มงาน' && !formData.startDate) { alert('กรุณาระบุวันที่เริ่มงาน'); return; }
-        setIsSaving(true);
-        const newRecord = { id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), ta: selectedTA, branchCode: String(addingApplicantFor.branchCode).padStart(3, '0'), branchName: addingApplicantFor.branchName, position: addingApplicantFor.position, ...formData, timestamp: getConsistentTimestamp(), updatedAt: Date.now() };
-        const newApps = [newRecord, ...applicants]; setApplicants(newApps);
-        setFormData({ name: '', phone: '', source: 'Walk-in at Store', status: '', comment: '', startDate: '', resumeName: '', resumeBase64: '' }); setAddingApplicantFor(null); 
-        await syncToCloud(newApps, vacancies); setIsSaving(false); 
-      };
-
-      const deleteApplicant = async (id) => {
-        if (window.confirm('ลบข้อมูลผู้สมัครรายนี้?')) {
-          const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); await syncToCloud(newApps, vacancies);
-        }
-      };
-
-      const startEditApp = (app) => { setEditAppId(app.id); setEditAppForm({ ...app }); };
-      const saveEditApp = async () => {
-        if (['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(editAppForm.status) && !editAppForm.comment) { alert('กรุณาระบุเหตุผล'); return; }
-        if (editAppForm.status === 'รอเริ่มงาน' && !editAppForm.startDate) { alert('กรุณาระบุวันที่เริ่มงาน'); return; }
-        setIsSaving(true);
-        if (!['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(editAppForm.status)) editAppForm.comment = '';
-        const newApps = applicants.map(a => String(a.id) === String(editAppId) ? { ...editAppForm, updatedAt: Date.now() } : a); setApplicants(newApps); 
-        await syncToCloud(newApps, vacancies); setIsSaving(false); setEditAppId(null);
-      };
-
-      const handleInlineStatusChange = (app, newStatus) => {
-        if (['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'รอเริ่มงาน'].includes(newStatus)) { startEditApp({ ...app, status: newStatus }); } 
-        else { const updatedApp = { ...app, status: newStatus, comment: '', startDate: '', updatedAt: Date.now() }; const newApps = applicants.map(a => String(a.id) === String(app.id) ? updatedApp : a); setApplicants(newApps); syncToCloud(newApps, vacancies); }
-      };
-
-      const toggleArea = (area) => { setSelectedAreas(prev => prev.includes(area) ? prev.filter(a => a !== area) : [...prev, area]); setVacancyForm(prev => ({...prev, branchCode: ''})); };
-      const handleVacancyInputChange = (e) => setVacancyForm(prev => ({ ...prev, [e.target.name]: e.target.value }));
-      const handleVacancySubmit = (e) => {
-        e.preventDefault();
-        if (vacancyForm.manualStatus === 'Promote&Transfer Done' && !vacancyForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล (Effective Date)'); return; }
-        const branch = appBranches.find(b => String(b.code) === String(vacancyForm.branchCode)); if (!branch) { alert('ไม่พบข้อมูลสาขาในระบบ'); return; }
-        const newVacancy = { id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), area: branch.area, branchCode: String(branch.code).padStart(3, '0'), branchName: branch.name, position: vacancyForm.position, manualStatus: vacancyForm.manualStatus, effectiveDate: vacancyForm.effectiveDate || '', createdAt: Date.now(), timestamp: getConsistentTimestamp() };
-        const newVacs = [newVacancy, ...vacancies]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
-      };
-
-      const deleteVacancy = async (id) => { if (window.confirm('ลบตำแหน่งงานนี้?')) { const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); syncToCloud(applicants, newVacs); } };
-      const startEditVac = (v) => { setEditVacId(v.id); setEditVacForm({ ...v }); };
-      const saveEditVac = () => {
-        if (editVacForm.manualStatus === 'Promote&Transfer Done' && !editVacForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล'); return; }
-        const branch = appBranches.find(b => String(b.code) === String(editVacForm.branchCode));
-        const newVacs = vacancies.map(v => String(v.id) === String(editVacId) ? { ...editVacForm, area: branch ? branch.area : v.area, branchName: branch ? branch.name : v.branchName } : v);
-        setVacancies(newVacs); setEditVacId(null); syncToCloud(applicants, newVacs);
-      };
-      const closeVacancy = (id) => { const newVacs = vacancies.map(v => String(v.id) === String(id) ? { ...v, manualStatus: 'Closed' } : v); setVacancies(newVacs); syncToCloud(applicants, newVacs); };
-      
-      const handleDownloadFile = (fileData, fileName) => {
-        if (!fileData || fileData === 'Uploaded') return; const fileString = String(fileData);
-        if (fileString.startsWith('http')) { window.open(fileString.replace('/preview', '/view'), '_blank'); return; }
-        try { const arr = fileString.split(','); if (arr.length !== 2) return; const mimeMatch = arr[0].match(/:(.*?);/); if (!mimeMatch) return; const mime = mimeMatch[1]; const bstr = atob(arr[1]); let n = bstr.length; const u8arr = new Uint8Array(n); while (n--) { u8arr[n] = bstr.charCodeAt(n); } const blob = new Blob([u8arr], { type: mime }); const url = window.URL.createObjectURL(blob); const a = document.createElement('a'); a.style.display = 'none'; a.href = url; a.download = fileName || 'Resume'; document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove(); } catch (error) { alert("เกิดข้อผิดพลาดในการดาวน์โหลดไฟล์"); }
-      };
-
-      const exportToExcel = (dataList, filename) => {
-        if (!dataList || dataList.length === 0) { alert('ไม่มีข้อมูลสำหรับ Export'); return; }
-        try {
-          const ws = window.XLSX.utils.json_to_sheet(dataList);
-          const wb = window.XLSX.utils.book_new();
-          window.XLSX.utils.book_append_sheet(wb, ws, "Data");
-          window.XLSX.writeFile(wb, `${filename}_${new Date().getTime()}.xlsx`);
-        } catch (error) { alert('เกิดข้อผิดพลาดในการ Export: ' + error.message); }
-      };
-
-      const handleResetMockDB = () => {
-          if(window.confirm("ยืนยันการล้างข้อมูลทั้งหมด? \nระบบจะโหลดข้อมูลใหม่จากไฟล์ CSV ทันที")) {
-              localStorage.removeItem('mock_db_data_v2');
-              localStorage.removeItem('hr_applicants');
-              localStorage.removeItem('hr_vacancies');
-              window.location.reload();
-          }
-      };
-
-      const availableBranchesForAreas = useMemo(() => { let branches = appBranches.filter(b => selectedAreas.includes(b.area)); return [...branches].sort((a, b) => { const codeA = parseInt(String(a.code).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.code).replace(/\D/g, ''), 10) || 0; return codeA - codeB; }); }, [appBranches, selectedAreas]);
-      const filteredVacancies = useMemo(() => { return [...vacancies].filter(v => { const areaMatch = selectedAreas.length === 0 || selectedAreas.includes(v.area); const positionMatch = vacancyPositionFilter === '' || v.position === vacancyPositionFilter; const branchMatch = vacancyBranchFilter === '' || String(v.branchCode) === String(vacancyBranchFilter); return areaMatch && positionMatch && branchMatch; }).map(v => ({ ...v, insight: getVacancyInsights(v) })).sort((a, b) => { const numA = parseInt(String(a.area).replace(/\D/g, '')) || 0; const numB = parseInt(String(b.area).replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; if (a.branchName !== b.branchName) return String(a.branchName).localeCompare(String(b.branchName), 'th'); return String(a.position).localeCompare(String(b.position), 'th'); }); }, [vacancies, selectedAreas, vacancyPositionFilter, vacancyBranchFilter, applicants]);
-      const availableVacancyPositions = useMemo(() => { const vacsInAreas = vacancies.filter(v => selectedAreas.length === 0 || selectedAreas.includes(v.area)); return [...new Set(vacsInAreas.map(v => v.position))].sort(); }, [vacancies, selectedAreas]);
-      const activeVacanciesForRecruit = useMemo(() => { return [...vacancies].filter(v => { if (v.manualStatus === 'Closed') return false; if (recruitAreaFilter && String(v.area) !== String(recruitAreaFilter)) return false; if (recruitBranchFilter && String(v.branchCode) !== String(recruitBranchFilter)) return false; if (selectedTA) { const currentTA = String(selectedTA).trim().toLowerCase(); const vacPos = String(v.position).trim(); const vacArea = String(v.area).trim().toLowerCase(); const posRules = appPositions.filter(p => String(p.position).trim() === vacPos); if (posRules.length > 0) { let matchingRule = posRules.find(p => { if (!p.area || String(p.area).trim() === '') return false; return String(p.area).split(',').map(a => a.trim().toLowerCase()).includes(vacArea); }); if (!matchingRule) matchingRule = posRules.find(p => !p.area || String(p.area).trim() === ''); if (matchingRule) { const assignedRecruit = String(matchingRule.recruit).trim().toLowerCase(); if (assignedRecruit !== '' && assignedRecruit !== currentTA) return false; } } } return true; }).map(v => ({ ...v, insight: getVacancyInsights(v) })).sort((a, b) => { const numA = parseInt(String(a.area).replace(/\D/g, '')) || 0; const numB = parseInt(String(b.area).replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; if (a.branchName !== b.branchName) return String(a.branchName).localeCompare(String(b.branchName), 'th'); return String(a.position).localeCompare(String(b.position), 'th'); }); }, [vacancies, recruitAreaFilter, recruitBranchFilter, appPositions, selectedTA, applicants]);
-      const dashboardVacancies = useMemo(() => { let activeVacs = vacancies.filter(v => v.manualStatus !== 'Closed'); if (dashboardTA !== 'ALL') { const currentTA = String(dashboardTA).trim().toLowerCase(); activeVacs = activeVacs.filter(v => { const vacPos = String(v.position).trim(); const vacArea = String(v.area).trim().toLowerCase(); const posRules = appPositions.filter(p => String(p.position).trim() === vacPos); if (posRules.length > 0) { let matchingRule = posRules.find(p => { if (!p.area || String(p.area).trim() === '') return false; return String(p.area).split(',').map(a => a.trim().toLowerCase()).includes(vacArea); }); if (!matchingRule) matchingRule = posRules.find(p => !p.area || String(p.area).trim() === ''); if (matchingRule) { const assignedRecruit = String(matchingRule.recruit).trim().toLowerCase(); if (assignedRecruit !== '' && assignedRecruit !== currentTA) return false; } } return true; }); } if (dashboardSelectedAreas.length > 0) { activeVacs = activeVacs.filter(v => dashboardSelectedAreas.includes(v.area)); } if (dashboardBranchFilter) { activeVacs = activeVacs.filter(v => String(v.branchCode) === String(dashboardBranchFilter)); } if (dashboardPositionFilter) { activeVacs = activeVacs.filter(v => v.position === dashboardPositionFilter); } return activeVacs; }, [vacancies, dashboardTA, appPositions, dashboardSelectedAreas, dashboardBranchFilter, dashboardPositionFilter]);
-      const vacancyStats = useMemo(() => { let total = dashboardVacancies.length; let vacant = 0, promote = 0, hold = 0, fulfilled = 0; dashboardVacancies.forEach(v => { const { computedStatus } = getVacancyInsights(v); if (computedStatus === 'Vacant') vacant++; else if (String(computedStatus).includes('Promote')) promote++; else if (computedStatus === 'Hold') hold++; if (['Hired', 'Waiting to Join', 'Promote&Transfer Done', 'Promote&Transfer'].includes(computedStatus)) { fulfilled++; } }); const progress = total > 0 ? Math.round((fulfilled / total) * 100) : 0; return { total, vacant, promote, hold, fulfilled, progress }; }, [dashboardVacancies, applicants]); 
-      const branchesForRecruitFilter = useMemo(() => { let branches = appBranches.filter(b => !recruitAreaFilter || String(b.area) === String(recruitAreaFilter)); return [...branches].sort((a, b) => { const codeA = parseInt(String(a.code).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.code).replace(/\D/g, ''), 10) || 0; return codeA - codeB; }); }, [appBranches, recruitAreaFilter]);
-      const dashboardBranchesForFilter = useMemo(() => { let branches = dashboardSelectedAreas.length === 0 ? appBranches : appBranches.filter(b => dashboardSelectedAreas.includes(b.area)); return [...branches].sort((a, b) => { const codeA = parseInt(String(a.code).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.code).replace(/\D/g, ''), 10) || 0; return codeA - codeB; }); }, [appBranches, dashboardSelectedAreas]);
-      const dashboardPositionsForFilter = useMemo(() => { let vacs = vacancies.filter(v => v.manualStatus !== 'Closed'); if (dashboardSelectedAreas.length > 0) vacs = vacs.filter(v => dashboardSelectedAreas.includes(v.area)); if (dashboardBranchFilter) vacs = vacs.filter(v => String(v.branchCode) === String(dashboardBranchFilter)); return [...new Set(vacs.map(v => v.position))].sort(); }, [vacancies, dashboardSelectedAreas, dashboardBranchFilter]);
-      const myApplicants = useMemo(() => { return [...applicants].filter(app => String(app.ta) === String(selectedTA)).sort((a, b) => b.updatedAt - a.updatedAt); }, [applicants, selectedTA]);
-      const dashboardData = useMemo(() => { let apps = dashboardTA === 'ALL' ? applicants : applicants.filter(app => String(app.ta) === String(dashboardTA)); if (dashboardSelectedAreas.length > 0) { apps = apps.filter(a => { const b = appBranches.find(br => String(br.code) === String(a.branchCode)); return b && dashboardSelectedAreas.includes(b.area); }); } if (dashboardBranchFilter) { apps = apps.filter(a => String(a.branchCode) === String(dashboardBranchFilter)); } if (dashboardPositionFilter) { apps = apps.filter(a => a.position === dashboardPositionFilter); } return apps; }, [applicants, dashboardTA, dashboardSelectedAreas, dashboardBranchFilter, dashboardPositionFilter, appBranches]);
-      const applicantStats = useMemo(() => { let total = dashboardData.length; let hired = 0, pending = 0, rejected = 0; dashboardData.forEach(a => { if (a.status === 'ผ่านสัมภาษณ์' || (a.status === 'รอเริ่มงาน' && a.startDate && new Date().setHours(0,0,0,0) >= new Date(a.startDate).setHours(0,0,0,0))) { hired++; } else if (['รอพิจารณาประวัติ', 'รอผลสัมภาษณ์', 'อยู่ระหว่างนัดสัมภาษณ์', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ'].includes(a.status) || (a.status === 'รอเริ่มงาน' && (!a.startDate || new Date().setHours(0,0,0,0) < new Date(a.startDate).setHours(0,0,0,0)))) { pending++; } else { rejected++; } }); return { total, hired, pending, rejected }; }, [dashboardData]);
-
-      const sendLineSummary = async () => { alert("ในโหมดจำลอง (Mock DB) ระบบจะระงับการส่ง LINE แจ้งเตือนไว้ครับ"); };
-
-      const dashboardGroupedData = useMemo(() => {
-        let filteredVacs = dashboardVacancies; const areaMap = {};
-        const areasToShow = dashboardSelectedAreas.length > 0 ? dashboardSelectedAreas : appAreas;
-        areasToShow.forEach(areaName => { areaMap[areaName] = { area: areaName, totalVacancies: 0, fulfilledVacancies: 0, candidateCount: 0, statusCounts: {}, branches: {} }; });
-        appBranches.forEach(b => { if (areasToShow.includes(b.area)) { if (dashboardBranchFilter && String(b.code) !== String(dashboardBranchFilter)) return; if (areaMap[b.area]) { areaMap[b.area].branches[b.code] = { branchCode: b.code, branchName: b.name, totalVacancies: 0, fulfilledVacancies: 0, candidateCount: 0, statusCounts: {}, vacancies: [] }; } } });
-        filteredVacs.forEach(v => {
-            const insight = getVacancyInsights(v); const isFulfilled = ['Hired', 'Waiting to Join', 'Promote&Transfer Done', 'Promote&Transfer'].includes(insight.computedStatus); const status = insight.computedStatus; const candCount = insight.applicantCount || 0;
-            const areaName = v.area || 'Unknown'; const bCode = v.branchCode;
-            if (!areaMap[areaName]) return; if (!areaMap[areaName].branches[bCode]) return;
-            areaMap[areaName].totalVacancies++; areaMap[areaName].branches[bCode].totalVacancies++;
-            if (isFulfilled) { areaMap[areaName].fulfilledVacancies++; areaMap[areaName].branches[bCode].fulfilledVacancies++; }
-            areaMap[areaName].statusCounts[status] = (areaMap[areaName].statusCounts[status] || 0) + 1; areaMap[areaName].branches[bCode].statusCounts[status] = (areaMap[areaName].branches[bCode].statusCounts[status] || 0) + 1;
-            areaMap[areaName].candidateCount += candCount; areaMap[areaName].branches[bCode].candidateCount += candCount;
-            areaMap[areaName].branches[bCode].vacancies.push({ ...v, insight, progressPct: isFulfilled ? 100 : 0 });
-        });
-        return Object.values(areaMap).map(areaObj => {
-            areaObj.progressPct = areaObj.totalVacancies > 0 ? Math.round((areaObj.fulfilledVacancies / areaObj.totalVacancies) * 100) : 0;
-            areaObj.branches = Object.values(areaObj.branches).map(b => { b.progressPct = b.totalVacancies > 0 ? Math.round((b.fulfilledVacancies / b.totalVacancies) * 100) : 0; b.vacancies.sort((v1, v2) => { if (v2.progressPct !== v1.progressPct) return v2.progressPct - v1.progressPct; return String(v1.position).localeCompare(String(v2.position), 'th'); }); return b; });
-            areaObj.branches.sort((a, b) => { const codeA = parseInt(String(a.branchCode).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.branchCode).replace(/\D/g, ''), 10) || 0; return codeA - codeB; });
-            return areaObj;
-        }).sort((a,b) => { const numA = parseInt(String(a.area).replace(/\D/g, '')) || 0; const numB = parseInt(String(b.area).replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; return String(a.area).localeCompare(String(b.area), 'th'); });
-      }, [dashboardVacancies, appAreas, appBranches, dashboardSelectedAreas, dashboardBranchFilter, applicants]);
-
-      const handleShowDashboardDetail = (title, type, filterMode, branchCode = null, areaName = null) => {
-        let filteredData = [];
-        if (type === 'vacancy') {
-          filteredData = dashboardVacancies.map(v => ({...v, insight: getVacancyInsights(v)})).filter(v => {
-            if (branchCode && String(v.branchCode) !== String(branchCode)) return false;
-            if (areaName && String(v.area) !== String(areaName)) return false;
-            if (filterMode === 'all') return true; if (filterMode === 'vacant') return v.insight.computedStatus === 'Vacant';
-            if (filterMode === 'promote') return String(v.insight.computedStatus).includes('Promote'); if (filterMode === 'hold') return v.insight.computedStatus === 'Hold';
-            if (filterMode === 'fulfilled') return ['Hired', 'Waiting to Join', 'Promote&Transfer Done', 'Promote&Transfer'].includes(v.insight.computedStatus);
-            if (v.insight.computedStatus === filterMode) return true; return false;
-          }).sort((a, b) => { const timeA = parseDateToMs(a.createdAt) || 0; const timeB = parseDateToMs(b.createdAt) || 0; return timeB - timeA; }); 
-        } else if (type === 'applicant') {
-          filteredData = dashboardData.filter(a => {
-            if (branchCode && String(a.branchCode) !== String(branchCode)) return false;
-            if (areaName) { const branch = appBranches.find(b => String(b.code) === String(a.branchCode)); if (!branch || branch.area !== areaName) return false; }
-            if (filterMode === 'all') return true;
-            if (filterMode === 'hired') { if (a.status === 'ผ่านสัมภาษณ์') return true; if (a.status === 'รอเริ่มงาน' && a.startDate) { return new Date().setHours(0,0,0,0) >= new Date(a.startDate).setHours(0,0,0,0); } return false; }
-            if (filterMode === 'pending') { if (['รอพิจารณาประวัติ', 'รอผลสัมภาษณ์', 'อยู่ระหว่างนัดสัมภาษณ์', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ'].includes(a.status)) return true; if (a.status === 'รอเริ่มงาน') { if (!a.startDate) return true; return new Date().setHours(0,0,0,0) < new Date(a.startDate).setHours(0,0,0,0); } return false; }
-            if (filterMode === 'rejected') { return ['ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'อื่นๆ'].includes(a.status); }
-            return true;
-          }).sort((a, b) => { const timeA = parseDateToMs(a.updatedAt) || 0; const timeB = parseDateToMs(b.updatedAt) || 0; return timeB - timeA; }); 
-        }
-        setDashboardDetailModal({ title, type, data: filteredData });
-      };
-
-      return (
-        <div className="min-h-screen font-sans text-slate-800 pb-10 relative">
-          {isLoading && (
-            <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center transition-all">
-              <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
-                <Icon name="arrow-repeat" className="animate-spin text-blue-600" size={48} />
-                <span className="font-bold text-slate-700 text-lg">กำลังโหลดฐานข้อมูลจำลอง...</span>
-              </div>
-            </div>
-          )}
-          <nav className="glass-effect border-b border-slate-200/50 sticky top-0 z-30 shadow-sm transition-all duration-300">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center h-auto md:h-16 py-3 md:py-0">
-              <div className="flex items-center space-x-3 mb-3 md:mb-0 w-full md:w-auto justify-center md:justify-start">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/30 shadow-lg flex items-center justify-center text-white"><Icon name="people-fill" size={20} /></div>
-                <span className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">HR <span className="text-blue-600">Recruit</span></span>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center w-full md:w-auto space-y-3 sm:space-y-0 sm:space-x-4">
-                <div className="flex space-x-1 bg-slate-100/80 p-1 rounded-2xl whitespace-nowrap shadow-inner border border-slate-200/60 overflow-x-auto w-full sm:w-auto hide-scrollbar justify-start sm:justify-center">
-                  <button onClick={() => setActiveTab('area_hr')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'area_hr' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icon name="briefcase-fill" size={16} /><span>Area HR</span></button>
-                  <button onClick={() => setActiveTab('entry')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'entry' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icon name="person-plus-fill" size={16} /><span>Recruit</span></button>
-                  <button onClick={() => setActiveTab('dashboard')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icon name="bar-chart-fill" size={16} /><span>Dashboard</span></button>
-                </div>
-                <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
-                  <div className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white shadow-sm border border-slate-200">
-                    {cloudStatus === 'loading' && <><div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div><span className="text-slate-600">กำลังเชื่อมต่อ DB</span></>}
-                    {cloudStatus === 'connected' && <><div className="w-2 h-2 bg-emerald-500 rounded-full"></div><span className="text-emerald-700">จำลอง DB สำเร็จ</span></>}
-                    {cloudStatus === 'syncing' && <><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div><span className="text-blue-700">กำลังเซฟ...</span></>}
-                    {cloudStatus === 'error' && <><div className="w-2 h-2 bg-red-500 rounded-full"></div><span className="text-red-700">ออฟไลน์</span></>}
-                  </div>
-                  <button onClick={() => setShowSettings(true)} className="flex flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-sm font-bold shadow-sm border border-slate-200 transition-colors"><Icon name="gear-fill" size={16}/><span className="inline">ตั้งค่า</span></button>
-                </div>
-              </div>
-            </div>
-          </nav>
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-in slide-in-from-bottom-4 duration-500">
-            {activeTab === 'area_hr' && (
-              <div className="space-y-6">
-                <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 p-6">
-                  <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-bold flex items-center space-x-2 text-slate-800"><Icon name="map-fill" className="text-blue-600" size={24} /><span>เลือก Area ที่ต้องการจัดการ</span></h2></div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {appAreas.map(area => (<button key={area} onClick={() => toggleArea(area)} className={`w-full px-4 py-3 rounded-2xl text-sm font-bold border transition-all duration-200 truncate ${selectedAreas.includes(area) ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-lg shadow-blue-500/30 transform scale-[1.03]' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 hover:-translate-y-0.5'}`}>{area}</button>))}
-                  </div>
-                </div>
-                {selectedAreas.length > 0 && (
-                  <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
-                    <div className="bg-slate-50/80 border-b px-6 py-5 flex items-center space-x-3"><div className="bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-700 p-2.5 rounded-xl shadow-inner"><Icon name="bullseye" size={20}/></div><h2 className="font-extrabold text-lg text-slate-800">เปิดตำแหน่งงานว่างใหม่</h2></div>
-                    <form onSubmit={handleVacancySubmit} className="p-6 space-y-5">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-1.5"><label className="text-xs font-bold text-slate-500 ml-1">เลือกสาขา</label><select required name="branchCode" value={vacancyForm.branchCode} onChange={handleVacancyInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all"><option value="">-- เลือกสาขา --</option>{availableBranchesForAreas.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select></div>
-                        <div className="space-y-1.5"><label className="text-xs font-bold text-slate-500 ml-1">ตำแหน่งที่เปิดรับ</label><select required name="position" value={vacancyForm.position} onChange={handleVacancyInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all"><option value="">-- เลือกตำแหน่งงาน --</option>{uniquePositionNames.map(pos => <option key={pos} value={pos}>{pos}</option>)}</select></div>
-                        <div className="space-y-1.5"><label className="text-xs font-bold text-slate-500 ml-1">สถานะเริ่มต้น</label><select required name="manualStatus" value={vacancyForm.manualStatus} onChange={handleVacancyInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all">{appVacancyStatuses.filter(s => s !== 'Closed').map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                        {vacancyForm.manualStatus === 'Promote&Transfer Done' && (<div className="space-y-1.5 md:col-start-3"><label className="text-xs font-bold text-emerald-600 ml-1">ระบุวันที่มีผล (Effective Date)</label><input required type="date" name="effectiveDate" value={vacancyForm.effectiveDate || ''} onChange={handleVacancyInputChange} className="w-full border border-emerald-300 bg-emerald-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all" /></div>)}
-                      </div>
-                      <div className="flex justify-end pt-2"><button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-2xl shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition-all flex items-center space-x-2"><Icon name="briefcase-fill" size={18}/><span>สร้างตำแหน่งงานใหม่</span></button></div>
-                    </form>
-                  </div>
-                )}
-                {selectedAreas.length > 0 && (
-                  <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 bg-slate-50/50">
-                      <h3 className="font-extrabold text-lg text-slate-800 flex items-center shrink-0"><Icon name="search" size={20} className="mr-2 text-slate-400"/>รายการตำแหน่งงานที่จัดการ</h3>
-                      <div className="flex flex-row items-center w-full lg:w-auto gap-2.5 overflow-x-auto hide-scrollbar pb-1">
-                        <div className="relative shrink-0 w-36 sm:w-48"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icon name="building" size={14} className="text-slate-400" /></div><select value={vacancyBranchFilter} onChange={(e) => setVacancyBranchFilter(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:bg-slate-50 transition-colors appearance-none truncate cursor-pointer"><option value="">ทุกสาขา</option>{availableBranchesForAreas.map(b => (<option key={b.code} value={b.code}>{b.code} - {b.name}</option>))}</select></div>
-                        <div className="relative shrink-0 w-40 sm:w-56"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icon name="funnel-fill" size={14} className="text-slate-400" /></div><select value={vacancyPositionFilter} onChange={(e) => setVacancyPositionFilter(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:bg-slate-50 transition-colors appearance-none truncate cursor-pointer"><option value="">ทุกตำแหน่งงาน</option>{availableVacancyPositions.map(pos => (<option key={pos} value={pos}>{pos}</option>))}</select></div>
-                        <button onClick={() => exportToExcel(filteredVacancies, 'Vacancies')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center shrink-0 hover:bg-slate-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"><Icon name="download" size={14} className="mr-1.5"/>Export</button>
-                      </div>
-                    </div>
-                    <div className="overflow-x-auto hide-scrollbar">
-                      <table className="w-full text-sm text-left whitespace-nowrap">
-                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500"><tr><th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">Area / สาขา</th><th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">ตำแหน่งงาน</th><th className="px-6 py-4 font-bold text-center uppercase tracking-wider text-xs">SLA</th><th className="px-6 py-4 font-bold text-center uppercase tracking-wider text-xs">ผู้สมัคร</th><th className="px-6 py-4 font-bold uppercase tracking-wider text-xs">สถานะงาน</th><th className="px-6 py-4 font-bold text-right uppercase tracking-wider text-xs">จัดการ</th></tr></thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {filteredVacancies.length > 0 ? filteredVacancies.map((v) => {
-                            if (editVacId === v.id) return (
-                                <tr key={v.id} className="bg-blue-50/50">
-                                  <td className="px-6 py-4 align-top"><select value={editVacForm.branchCode} onChange={e=>setEditVacForm({...editVacForm, branchCode:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">{availableBranchesForAreas.map(b=><option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select></td>
-                                  <td className="px-6 py-4 align-top"><select value={editVacForm.position} onChange={e=>setEditVacForm({...editVacForm, position:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">{uniquePositionNames.map(pos=><option key={pos} value={pos}>{pos}</option>)}</select></td>
-                                  <td className="px-6 py-4 text-center text-slate-400 align-top">-</td><td className="px-6 py-4 text-center text-slate-400 align-top">-</td>
-                                  <td className="px-6 py-4 min-w-[250px] align-top whitespace-normal"><div className="flex flex-col gap-2"><select value={editVacForm.manualStatus} onChange={e=>setEditVacForm({...editVacForm, manualStatus:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2 rounded-xl text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">{appVacancyStatuses.map(s=><option key={s} value={s}>{s}</option>)}</select>{editVacForm.manualStatus === 'Promote&Transfer Done' && (<input type="date" value={editVacForm.effectiveDate || ''} onChange={e=>setEditVacForm({...editVacForm, effectiveDate:e.target.value})} className="w-full border border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm p-2 rounded-xl text-xs font-bold outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20" title="วันที่มีผล" />)}</div></td>
-                                  <td className="px-6 py-4 text-right align-top"><div className="flex flex-col xl:flex-row justify-end gap-2"><button onClick={saveEditVac} className="w-full xl:w-auto bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors whitespace-nowrap">บันทึก</button><button onClick={()=>setEditVacId(null)} className="w-full xl:w-auto bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors whitespace-nowrap">ยกเลิก</button></div></td>
-                                </tr>
-                            )
-                            const { applicantCount, computedStatus, slaDays, matchedApplicants } = v.insight; const isActive = computedStatus === 'Vacant';
-                            return (
-                              <tr key={v.id} className={`hover:bg-slate-50/80 transition-colors group ${!isActive ? 'bg-slate-50/50' : ''}`}>
-                                <td className="px-6 py-4"><div className={`text-[10px] font-extrabold uppercase tracking-wider mb-0.5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>{v.area}</div><div className={`font-bold ${isActive ? 'text-slate-800' : 'text-slate-600'}`}>{v.branchCode} - {v.branchName}</div></td>
-                                <td className={`px-6 py-4 font-extrabold cursor-pointer hover:text-blue-600 transition-colors ${isActive ? 'text-slate-800' : 'text-slate-500'}`} onClick={()=>startEditVac(v)}>{v.position} <Icon name="pencil-square" size={14} className="inline opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-blue-500"/></td>
-                                <td className={`px-6 py-4 text-center font-black text-xl ${slaDays > 30 ? 'text-red-500' : 'text-slate-600'} ${!isActive ? 'opacity-50' : ''}`}>{slaDays}<span className="text-[10px] font-bold text-slate-400 block -mt-1">DAYS</span></td>
-                                <td className="px-6 py-4 text-center"><button onClick={()=>setViewApplicants({position:v.position, branchName:v.branchName, list:[...matchedApplicants].sort((a,b)=>(b.updatedAt || 0) - (a.updatedAt || 0))})} disabled={applicantCount===0} className={`w-10 h-10 rounded-2xl font-black text-base shadow-sm transition-all ${applicantCount>0?'bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white hover:shadow-blue-500/30 hover:-translate-y-0.5':'bg-slate-100 text-slate-400 opacity-50'}`}>{applicantCount}</button></td>
-                                <td className="px-6 py-4"><div className="flex flex-col items-start gap-2"><VacancyBadge status={computedStatus} />{computedStatus === 'Hired' && v.manualStatus !== 'Closed' && (<button onClick={() => closeVacancy(v.id)} className="flex items-center px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all shadow-sm border border-amber-200 animate-pulse"><Icon name="bell-fill" size={12} className="mr-1.5"/> ปิด Job นี้</button>)}{computedStatus === 'Promote&Transfer Done' && v.effectiveDate && (<div className="text-[10px] text-emerald-600 font-bold flex items-center bg-emerald-50 px-2 py-1 rounded-md"><Icon name="clock-fill" size={10} className="mr-1"/> มีผล: {new Date(v.effectiveDate).toLocaleDateString('th')}</div>)}</div></td>
-                                <td className="px-6 py-4 text-right space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>startEditVac(v)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Icon name="pencil-square" size={18}/></button><button onClick={()=>deleteVacancy(v.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Icon name="trash-fill" size={18}/></button></td>
-                              </tr>
-                            )
-                          }) : <tr><td colSpan="6" className="px-6 py-16 text-center"><div className="flex flex-col items-center justify-center text-slate-400"><Icon name="search" size={48} className="mb-4 text-slate-200"/><p className="font-bold text-lg text-slate-500">ไม่มีตำแหน่งงานในเงื่อนไขที่เลือก</p></div></td></tr>}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'entry' && (
-              <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <h2 className="text-xl font-bold flex items-center text-slate-800"><Icon name="person-plus-fill" className="text-blue-600 mr-2.5" size={24}/> เลือกผู้รับผิดชอบ (Recruiter)</h2>
-                  <select value={selectedTA} onChange={e=>setSelectedTA(e.target.value)} className="w-full sm:w-72 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"><option value="">-- ระบุชื่อ TA --</option>{appTAs.map(ta=><option key={ta} value={ta}>{ta}</option>)}</select>
-                </div>
-                {selectedTA && (() => {
-                  return (
-                  <>
-                    <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
-                      <div className="p-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center bg-slate-50/50">
-                        <div className="flex items-center space-x-3 shrink-0"><div className="bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 p-2 rounded-xl shadow-inner"><Icon name="bullseye" size={18}/></div><h3 className="font-extrabold text-lg text-slate-800">งานที่รับผิดชอบ <span className="text-xs font-normal text-slate-500">(Auto-filtered)</span></h3></div>
-                        <div className="flex flex-row items-center w-full lg:w-auto gap-2.5 overflow-x-auto hide-scrollbar pb-1">
-                          <select value={recruitAreaFilter} onChange={e=>{setRecruitAreaFilter(e.target.value);setRecruitBranchFilter('')}} className="shrink-0 w-32 sm:w-40 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-sm cursor-pointer truncate"><option value="">ทุก Area</option>{appAreas.map(a=><option key={a}>{a}</option>)}</select>
-                          <select value={recruitBranchFilter} onChange={e=>setRecruitBranchFilter(e.target.value)} disabled={!recruitAreaFilter} className="shrink-0 w-36 sm:w-48 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-sm disabled:opacity-50 cursor-pointer truncate"><option value="">ทุกสาขา</option>{branchesForRecruitFilter.map(b=><option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto hide-scrollbar">
-                        <table className="w-full text-sm text-left whitespace-nowrap">
-                          <thead className="bg-white border-b text-slate-400"><tr><th className="p-5 font-bold uppercase tracking-wider text-xs">Area / สาขา</th><th className="p-5 font-bold uppercase tracking-wider text-xs">ตำแหน่งเปิดรับ</th><th className="p-5 font-bold text-center uppercase tracking-wider text-xs">รับแล้ว</th><th className="p-5 font-bold uppercase tracking-wider text-xs">สถานะหน้าบ้าน</th><th className="p-5 font-bold text-right uppercase tracking-wider text-xs">Action</th></tr></thead>
-                          <tbody className="divide-y divide-slate-50">
-                            {activeVacanciesForRecruit.length > 0 ? activeVacanciesForRecruit.map(v => {
-                              const { applicantCount, computedStatus } = v.insight; const isActive = computedStatus === 'Vacant';
-                              return (
-                                <tr key={v.id} className={`hover:bg-slate-50 transition-colors ${!isActive ? 'bg-slate-50/50' : ''}`}>
-                                  <td className="p-5"><div className={`text-[10px] font-extrabold uppercase tracking-wider mb-1 ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}>{v.area}</div><div className={`font-bold ${isActive ? 'text-slate-700' : 'text-slate-500'}`}>{v.branchCode} - {v.branchName}</div></td>
-                                  <td className={`p-5 font-extrabold ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>{v.position}</td>
-                                  <td className="p-5 text-center"><span className="inline-flex items-center justify-center w-8 h-8 rounded-xl font-bold bg-slate-100 text-slate-600 shadow-inner">{applicantCount}</span></td>
-                                  <td className="p-5"><VacancyBadge status={computedStatus} /></td>
-                                  <td className="p-5 text-right">{isActive ? (<button onClick={()=>setAddingApplicantFor(v)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:-translate-y-0.5 transition-all flex items-center ml-auto"><Icon name="person-plus-fill" size={16} className="mr-2"/>เพิ่มประวัติ</button>) : (<span className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center w-fit ml-auto opacity-80 cursor-not-allowed"><Icon name="check-lg" size={16} className="mr-2"/>ปิดรับแล้ว</span>)}</td>
-                                </tr>
-                              );
-                            }) : <tr><td colSpan="5" className="p-16 text-center text-slate-400"><Icon name="bullseye" size={48} className="mx-auto mb-4 text-slate-200"/><p className="font-bold text-lg text-slate-500">ไม่มีตำแหน่งงานที่ต้องรับผิดชอบ</p></td></tr>}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 mt-8 overflow-hidden">
-                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center space-x-3"><div className="bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 p-2.5 rounded-xl shadow-inner"><Icon name="people-fill" size={20}/></div><h3 className="font-extrabold text-lg text-slate-800">ประวัติผู้สมัครที่ดูแล</h3></div><button onClick={()=>exportToExcel(myApplicants, 'MyApplicants_Export')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all shadow-sm"><Icon name="download" size={16} className="mr-2"/> Export Excel</button></div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left">
-                          <tbody className="divide-y divide-slate-100">
-                            {myApplicants.length === 0 && <tr><td colSpan="4" className="p-10 text-center text-slate-400 font-medium">ยังไม่มีประวัติผู้สมัคร</td></tr>}
-                            {myApplicants.map(app => {
-                              if (editAppId === app.id) return (
-                                <tr key={app.id} className="bg-blue-50/40">
-                                  <td className="p-4 font-bold text-slate-700 w-1/4 align-top"><div className="text-[10px] text-blue-600 uppercase mb-1">สาขา</div>{app.branchName}</td>
-                                  <td className="p-4 space-y-2 w-1/4 align-top">
-                                    <input value={editAppForm.name} onChange={e=>setEditAppForm({...editAppForm, name:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2.5 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" disabled={isSaving} placeholder="ชื่อ-นามสกุล"/>
-                                    <input value={editAppForm.phone} onChange={e=>setEditAppForm({...editAppForm, phone:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2.5 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" disabled={isSaving} placeholder="เบอร์โทรศัพท์"/>
-                                    <div className={`mt-2 border-2 border-dashed border-slate-300 p-2 rounded-xl bg-white flex items-center transition-all hover:border-blue-400 ${isSaving ? 'opacity-50' : ''}`}><Icon name="upload" size={14} className="text-blue-500 shrink-0 mx-2"/><input type="file" onChange={handleEditFileUpload} disabled={isSaving} className="text-[10px] w-full text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer outline-none"/></div>
-                                    {editAppForm.resumeName && <div className="text-[10px] font-bold text-emerald-600 flex items-center truncate mt-1"><Icon name="check-circle-fill" size={10} className="mr-1"/> ไฟล์: {editAppForm.resumeName}</div>}
-                                  </td>
-                                  <td className="p-4 space-y-2 min-w-[220px] w-1/4 align-top">
-                                    <select value={editAppForm.status} onChange={e=>setEditAppForm({...editAppForm, status:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2.5 rounded-xl text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" disabled={isSaving}>{appStatuses.map(s=><option key={s}>{s}</option>)}</select>
-                                    {editAppForm.status==='รอเริ่มงาน' && <input type="date" value={editAppForm.startDate||''} onChange={e=>setEditAppForm({...editAppForm, startDate:e.target.value})} className="w-full border border-sky-300 bg-sky-50 text-sky-700 shadow-sm p-2.5 rounded-xl text-sm font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20" title="วันที่เริ่มงาน" disabled={isSaving}/>}
-                                    {['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(editAppForm.status) && <input placeholder="ระบุเหตุผลที่ปฏิเสธ..." value={editAppForm.comment||''} onChange={e=>setEditAppForm({...editAppForm, comment:e.target.value})} className="w-full border border-orange-300 bg-orange-50 text-orange-700 shadow-sm p-2.5 rounded-xl text-sm font-bold outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" disabled={isSaving}/>}
-                                  </td>
-                                  <td className="p-4 text-right align-top w-1/4"><div className="flex flex-col space-y-2 items-end"><button onClick={saveEditApp} disabled={isSaving} className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex justify-center items-center whitespace-nowrap">{isSaving ? <><Icon name="arrow-repeat" className="animate-spin mr-2" size={16}/>กำลังบันทึก...</> : 'บันทึกข้อมูล'}</button><button onClick={()=>setEditAppId(null)} disabled={isSaving} className="w-full sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all whitespace-nowrap">ยกเลิก</button></div></td>
-                                </tr>
-                              )
-                              return (
-                                <tr key={app.id} className="hover:bg-slate-50 transition-colors group">
-                                  <td className="p-5 w-1/4"><div className="font-bold text-slate-800">{app.branchName}</div><div className="text-xs font-semibold text-slate-500 mt-1 flex items-center"><Icon name="briefcase-fill" size={12} className="mr-1.5 text-slate-400"/>{app.position}</div></td>
-                                  <td className="p-5 cursor-pointer group/name w-1/4" onClick={()=>startEditApp(app)}>
-                                    <div className="font-extrabold text-base text-slate-800 group-hover/name:text-blue-600 flex items-center">{app.name} <Icon name="pencil-square" size={14} className="ml-2 opacity-0 group-hover/name:opacity-100 transition-opacity text-blue-500"/></div>
-                                    <div className="text-sm font-medium text-slate-500 mt-1 flex items-center"><Icon name="telephone-fill" size={12} className="mr-1.5 text-slate-400"/>{app.phone}</div>
-                                    <div className="flex flex-wrap items-center gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
-                                      {app.resumeBase64 && app.resumeBase64 !== 'Uploaded' && !String(app.resumeBase64).startsWith('Error') && (<button onClick={(e) => handleViewResume(e, app.resumeBase64, app.resumeName)} className="text-[11px] font-bold text-blue-700 hover:text-white flex items-center bg-blue-50 hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-all border border-blue-200 shadow-sm"><Icon name="eye-fill" size={14} className="mr-1.5" /> ดูเรซูเม่</button>)}
-                                      {app.resumeBase64 === 'Uploaded' && (<span className="text-[11px] font-bold text-slate-500 flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200"><Icon name="check-circle-fill" size={14} className="mr-1.5 text-emerald-500" /> แนบไฟล์แล้ว</span>)}
-                                      {app.resumeBase64 && String(app.resumeBase64).startsWith('Error') && (<span className="text-[11px] font-bold text-red-600 flex items-center bg-red-50 px-3 py-1.5 rounded-lg border border-red-200" title={app.resumeBase64}><Icon name="exclamation-circle-fill" size={14} className="mr-1.5" /> ล้มเหลว</span>)}
-                                    </div>
-                                  </td>
-                                  <td className="p-5 w-1/4">
-                                    <select value={app.status} onChange={e=>handleInlineStatusChange(app, e.target.value)} className="status-select font-extrabold text-xs px-4 py-2 rounded-xl outline-none border transition-all cursor-pointer w-full shadow-sm hover:shadow-md" style={{color:STATUS_COLORS[app.status]||'#64748b', borderColor:STATUS_COLORS[app.status]||'#cbd5e1', backgroundColor: (STATUS_COLORS[app.status]||'#cbd5e1')+'10'}}>{appStatuses.map(s=><option key={s}>{s}</option>)}</select>
-                                    {app.status==='รอเริ่มงาน' && app.startDate && <div className="text-xs text-sky-700 mt-2 font-bold flex items-center bg-sky-50 p-1.5 rounded-lg border border-sky-100"><Icon name="clock-fill" size={12} className="mr-1.5"/>เริ่มงาน: {new Date(app.startDate).toLocaleDateString('th')}</div>}
-                                    {app.comment && <div className="text-[11px] text-slate-500 mt-2 font-medium bg-slate-100 p-2 rounded-lg border border-slate-200 border-l-2 border-l-orange-400">"{app.comment}"</div>}
-                                  </td>
-                                  <td className="p-5 text-right space-x-1 w-1/4 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>startEditApp(app)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Icon name="pencil-square" size={18}/></button><button onClick={()=>deleteApplicant(app.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Icon name="trash-fill" size={18}/></button></td>
-                                </tr>
-                              )
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </>
-                  );
-                })()}
-
-                {/* Modal เพิ่มผู้สมัครใหม่ */}
-                {addingApplicantFor && (
-                  <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
-                      <div className="px-8 py-5 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center shadow-md relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10"></div>
-                        <div className="relative z-10">
-                          <h3 className="font-extrabold text-xl">เพิ่มข้อมูลผู้สมัครใหม่ (Pro Edition)</h3>
-                          <p className="text-blue-100 text-sm mt-0.5 font-medium">{addingApplicantFor.position} • {addingApplicantFor.branchName}</p>
-                        </div>
-                        <button onClick={()=>setAddingApplicantFor(null)} disabled={isSaving} className="relative z-10 hover:bg-white/20 p-2 rounded-full transition-colors disabled:opacity-50"><Icon name="x-lg" size={24}/></button>
-                      </div>
-                      
-                      <form onSubmit={handleRecruitSubmit} className="p-6 sm:p-8 bg-slate-50/30">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 ml-1">ชื่อ-นามสกุล *</label>
-                            <input required placeholder="กรอกชื่อ-นามสกุล" value={formData.name} onChange={handleInputChange} name="name" disabled={isSaving} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"/>
-                          </div>
-                          
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 ml-1">เบอร์โทรศัพท์ *</label>
-                            <input required type="tel" placeholder="08X-XXX-XXXX" value={formData.phone} onChange={handleInputChange} name="phone" disabled={isSaving} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm"/>
-                          </div>
-                          
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 ml-1">ช่องทางรับสมัคร</label>
-                            <select required name="source" value={formData.source} onChange={handleInputChange} disabled={isSaving} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm">
-                              <option value="Walk-in at Store">Walk-in at Store</option>
-                              <option value="Facebook (Makro Job)">Facebook (Makro Job)</option>
-                              <option value="กลุ่ม Facebook">กลุ่ม Facebook</option>
-                              <option value="ป้ายประกาศในพื้นที่">ป้ายประกาศในพื้นที่</option>
-                              <option value="คนรู้จักแนะนำ">คนรู้จักแนะนำ</option>
-                              <option value="กรมจัดหางาน/จัดหางานจังหวัด">กรมจัดหางาน/จัดหางานจังหวัด</option>
-                              <option value="อื่นๆ">อื่นๆ</option>
-                            </select>
-                          </div>
-                          
-                          <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 ml-1">สถานะผู้สมัคร *</label>
-                            <select required name="status" value={formData.status} onChange={handleInputChange} disabled={isSaving} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm">
-                              <option value="">-- อัปเดตสถานะปัจจุบัน --</option>
-                              {appStatuses.map(s=><option key={s}>{s}</option>)}
-                            </select>
-                          </div>
-                        </div>
-
-                        {formData.status === 'รอเริ่มงาน' && (
-                          <div className="space-y-1.5 mb-5 animate-in slide-in-from-top-2">
-                            <label className="text-xs font-bold text-sky-600 ml-1 flex items-center"><Icon name="clock-fill" size={12} className="mr-1"/> ระบุวันที่เริ่มงาน *</label>
-                            <input required type="date" name="startDate" value={formData.startDate||''} onChange={handleInputChange} disabled={isSaving} className="w-full border border-sky-300 bg-sky-50 text-sky-800 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all shadow-sm"/>
-                          </div>
-                        )}
-                        
-                        {['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(formData.status) && (
-                          <div className="mb-5 animate-in slide-in-from-top-2">
-                            <textarea required name="comment" value={formData.comment} onChange={handleInputChange} disabled={isSaving} placeholder="โปรดระบุหมายเหตุ/เหตุผล *" className="w-full border border-orange-200 bg-orange-50 text-orange-800 rounded-xl p-4 text-sm font-medium outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-sm h-24"></textarea>
-                          </div>
-                        )}
-                        
-                        <div className={`space-y-1.5 pt-4 border-t border-slate-100 ${isSaving ? 'opacity-50' : ''}`}>
-                          <label className="text-xs font-bold text-slate-500 ml-1">แนบไฟล์เอกสาร (PDF หรือ รูปภาพ ไม่เกิน 3MB)</label>
-                          <div className="flex items-center space-x-3 border-2 border-dashed border-slate-300 p-2.5 rounded-xl bg-white hover:border-blue-400 hover:bg-blue-50/50 transition-all group cursor-pointer relative overflow-hidden">
-                            <div className="bg-slate-100 group-hover:bg-blue-100 p-2.5 rounded-lg text-slate-500 group-hover:text-blue-600 transition-colors ml-1"><Icon name="upload" size={18}/></div>
-                            <input type="file" onChange={handleFileUpload} disabled={isSaving} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
-                            <div className="flex-1 truncate">
-                              <p className="text-sm font-bold text-slate-700 truncate">{formData.resumeName || 'คลิกเพื่อเลือกไฟล์แนบ'}</p>
-                            </div>
-                            {formData.resumeName && <Icon name="check-circle-fill" size={20} className="text-emerald-500 mr-3"/>}
-                          </div>
-                        </div>
-                        
-                        <div className="pt-8 flex justify-end gap-3">
-                          <button type="button" onClick={()=>setAddingApplicantFor(null)} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">ยกเลิก</button>
-                          <button type="submit" disabled={isSaving} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-8 py-2.5 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center disabled:opacity-70 disabled:cursor-not-allowed">
-                            {isSaving ? <><Icon name="arrow-repeat" className="animate-spin mr-2" size={18}/>กำลังบันทึก...</> : <><Icon name="check-lg" size={18} className="mr-2"/>บันทึกข้อมูล</>}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeTab === 'dashboard' && (
-              <div className="space-y-4 sm:space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-                <div className="bg-slate-900 p-5 sm:p-6 lg:p-8 rounded-3xl text-white flex flex-col xl:flex-row justify-between items-start xl:items-center shadow-xl relative overflow-hidden gap-4 lg:gap-5">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
-                  <div className="absolute bottom-0 left-20 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl -mb-10 pointer-events-none"></div>
-                  
-                  <div className="relative z-10 w-full xl:w-auto">
-                    <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200">Executive Dashboard</h2>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1 font-medium flex items-center"><Icon name="bar-chart-fill" size={14} className="mr-1.5"/> สรุปภาพรวมและติดตามสถานะการสรรหา</p>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full xl:w-auto gap-2.5 relative z-10 hide-on-pdf">
-                    <div className="relative w-full sm:w-auto shrink-0">
-                        <select value={dashboardTA} onChange={e=>setDashboardTA(e.target.value)} className="w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-slate-800 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer shadow-sm appearance-none pr-10">
-                          <option value="ALL">📊 All TAs (ภาพรวมทั้งหมด)</option>
-                          {appTAs.map(t=><option key={t} value={t}>{t}</option>)}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                          <Icon name="chevron-down" size={16} />
-                        </div>
-                    </div>
-
-                    <div className="flex flex-wrap sm:flex-nowrap w-full sm:w-auto gap-2 shrink-0">
-                      <button onClick={sendLineSummary} disabled={isSendingLine} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-[#00B900] hover:bg-[#009900] text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-[#00B900]/30 transition-all hover:-translate-y-0.5 disabled:opacity-70 whitespace-nowrap">
-                        {isSendingLine ? <Icon name="arrow-repeat" className="animate-spin" size={16}/> : <Icon name="image" size={16}/>}
-                        <span>ส่งเข้า LINE</span>
-                      </button>
-                      <button onClick={exportDashboardToPDF} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-purple-500/30 transition-all hover:-translate-y-0.5 whitespace-nowrap">
-                        <Icon name="printer-fill" size={16}/>
-                        <span>Export PDF</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-4 hide-on-pdf relative z-20">
-                   <div className="flex items-center text-slate-800 font-extrabold text-sm shrink-0">
-                     <Icon name="funnel-fill" size={18} className="mr-2 text-blue-600"/> ตัวกรองข้อมูล (Global Filter)
-                   </div>
-                   
-                   <div className="flex flex-col gap-1.5 w-full overflow-hidden">
-                       <div className="text-[10px] font-bold text-slate-500 flex items-center"><Icon name="map-fill" size={12} className="mr-1"/> เลือก Area (เลือกได้มากกว่า 1)</div>
-                       <div className="flex flex-wrap items-center gap-2.5 pb-1.5 pt-0.5">
-                         <button 
-                           onClick={handleClearAllAreas}
-                           className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all border ${dashboardSelectedAreas.length === 0 ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'}`}
-                         >
-                           ทั้งหมด (All)
-                         </button>
-                         {appAreas.map(area => (
-                           <button 
-                             key={area}
-                             onClick={() => handleToggleDashboardArea(area)}
-                             className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all border ${dashboardSelectedAreas.includes(area) ? 'bg-blue-600 text-white border-blue-600 shadow-md hover:bg-blue-700' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700'}`}
-                           >
-                             {area}
-                           </button>
-                         ))}
-                       </div>
-                   </div>
-
-                   <div className="h-px bg-slate-100 w-full my-1"></div>
-
-                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto relative">
-                      <div className="shrink-0 sm:w-64">
-                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icon name="building" size={12} className="mr-1"/> สาขา</label>
-                        <select value={dashboardBranchFilter} onChange={(e) => {setDashboardBranchFilter(e.target.value); setDashboardPositionFilter('');}} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-500 appearance-none cursor-pointer">
-                          <option value="">ทุกสาขา (All Stores)</option>
-                          {dashboardBranchesForFilter.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="shrink-0 sm:w-64">
-                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icon name="briefcase-fill" size={12} className="mr-1"/> ตำแหน่งงาน</label>
-                        <select value={dashboardPositionFilter} onChange={(e) => setDashboardPositionFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-500 appearance-none cursor-pointer truncate">
-                          <option value="">ทุกตำแหน่งงาน (All Positions)</option>
-                          {dashboardPositionsForFilter.map(pos => <option key={pos} value={pos}>{pos}</option>)}
-                        </select>
-                      </div>
-                   </div>
-                </div>
-
-                <div id="dashboard-export-area" className="space-y-6 bg-transparent p-1 relative z-10">
-                  
-                  <div>
-                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icon name="briefcase-fill" className="mr-2 text-blue-600" size={16}/> สรุปสถานะตำแหน่งงาน <span className="text-[10px] font-medium text-slate-400 ml-2">(Vacancy Overview)</span></h3>
-                    <div className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-2 hide-scrollbar">
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-blue-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('เปิดรับทั้งหมด (Active)', 'vacancy', 'all')}>
-                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center"><Icon name="bullseye" size={14} className="mr-1.5 text-blue-400"/>เปิดรับทั้งหมด</div>
-                         <div className="text-2xl sm:text-3xl font-black text-slate-800">{vacancyStats.total}</div>
-                       </div>
-                       
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('ว่าง (Vacant)', 'vacancy', 'vacant')}>
-                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center"><Icon name="exclamation-circle-fill" size={14} className="mr-1.5"/>ว่าง (Vacant)</div>
-                         <div className="text-2xl sm:text-3xl font-black text-amber-600">{vacancyStats.vacant}</div>
-                       </div>
-                       
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-purple-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('Promote & Transfer', 'vacancy', 'promote')}>
-                         <div className="text-[10px] sm:text-xs text-purple-600 font-bold mb-1.5 flex items-center"><Icon name="people-fill" size={14} className="mr-1.5"/>Promote/Transfer</div>
-                         <div className="text-2xl sm:text-3xl font-black text-purple-600">{vacancyStats.promote}</div>
-                       </div>
-                       
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-slate-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('Hold / ระงับชั่วคราว', 'vacancy', 'hold')}>
-                         <div className="text-[10px] sm:text-xs text-slate-600 font-bold mb-1.5 flex items-center"><Icon name="clock-fill" size={14} className="mr-1.5"/>Hold / อื่นๆ</div>
-                         <div className="text-2xl sm:text-3xl font-black text-slate-600">{vacancyStats.hold}</div>
-                       </div>
-
-                       <div className="min-w-[160px] flex-1 bg-gradient-to-br from-emerald-500 to-teal-600 p-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all cursor-pointer text-white relative overflow-hidden flex flex-col justify-center" onClick={() => handleShowDashboardDetail('Progress (ได้คนแล้ว)', 'vacancy', 'fulfilled')}>
-                         <div className="flex justify-between items-end mb-1 relative z-10">
-                           <div className="text-[10px] sm:text-xs text-emerald-50 font-bold flex items-center"><Icon name="check-circle-fill" size={14} className="mr-1.5"/>Progress (ปิดงาน)</div>
-                           <div className="text-[9px] sm:text-[10px] text-emerald-100 font-bold bg-black/10 px-1.5 py-0.5 rounded-md">{vacancyStats.fulfilled}/{vacancyStats.total}</div>
-                         </div>
-                         <div className="text-2xl sm:text-3xl font-black text-white relative z-10 mt-0.5">{vacancyStats.progress}%</div>
-                         <div className="w-full bg-black/20 rounded-full h-1.5 mt-2.5 overflow-hidden relative z-10">
-                           <div className="bg-white h-1.5 rounded-full transition-all duration-1000 ease-out" style={{ width: `${vacancyStats.progress}%` }}></div>
-                         </div>
-                       </div>
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icon name="person-plus-fill" className="mr-2 text-indigo-600" size={16}/> สรุปสถานะผู้สมัคร <span className="text-[10px] font-medium text-slate-400 ml-2">(Applicant Overview)</span></h3>
-                    <div className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-2 hide-scrollbar">
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('รวมผู้สมัคร', 'applicant', 'all')}>
-                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="people-fill" size={14} className="text-indigo-400"/><span>ผู้สมัครทั้งหมด</span></div>
-                         <div className="text-2xl sm:text-3xl font-black text-slate-800">{applicantStats.total}</div>
-                       </div>
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-emerald-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('สำเร็จ (Hired)', 'applicant', 'hired')}>
-                         <div className="text-[10px] sm:text-xs text-emerald-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="check-circle-fill" size={14}/><span>สำเร็จ (Hired)</span></div>
-                         <div className="text-2xl sm:text-3xl font-black text-emerald-600">{applicantStats.hired}</div>
-                       </div>
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('รอดำเนินการ', 'applicant', 'pending')}>
-                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="clock-fill" size={14}/><span>รอดำเนินการ</span></div>
-                         <div className="text-2xl sm:text-3xl font-black text-amber-600">{applicantStats.pending}</div>
-                       </div>
-                       <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-red-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('ไม่ผ่าน/ปฏิเสธ', 'applicant', 'rejected')}>
-                         <div className="text-[10px] sm:text-xs text-red-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="x-lg" size={14}/><span>ไม่ผ่าน/ปฏิเสธ</span></div>
-                         <div className="text-2xl sm:text-3xl font-black text-red-500">{applicantStats.rejected}</div>
-                       </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
-                      <h3 className="font-extrabold text-sm flex items-center text-slate-800">
-                        <Icon name="building" className="mr-2 text-indigo-600" size={16}/> 
-                        ข้อมูลสถานะและการดำเนินงานแบบเจาะลึก
-                      </h3>
-                    </div>
-                    
-                    <div className="overflow-x-auto hide-scrollbar">
-                      <table className="w-full text-xs text-left whitespace-nowrap border-collapse">
-                        <thead className="bg-white border-b border-slate-200 text-slate-400">
-                          <tr>
-                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[35%]">Area / สาขา / ตำแหน่งงาน</th>
-                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[30%]">สถานะงาน</th>
-                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[15%]">ผู้สมัคร</th>
-                            <th className="px-4 py-3 font-bold uppercase tracking-wider text-[10px] w-[20%]">Progress</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {dashboardGroupedData.length > 0 ? dashboardGroupedData.map((area) => {
-                            const STANDARD_STATUS_ORDER = ['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed', 'Hired', 'Waiting to Join', 'รอตรวจสุขภาพ'];
-                            const activeStatusesInArea = STANDARD_STATUS_ORDER.filter(s => area.statusCounts[s] > 0);
-                            Object.keys(area.statusCounts).forEach(s => {
-                                if(!STANDARD_STATUS_ORDER.includes(s) && area.statusCounts[s] > 0) activeStatusesInArea.push(s);
-                            });
-
-                            return (
-                              <React.Fragment key={area.area}>
-                                <tr className="bg-indigo-50/40 border-y border-indigo-100/50 cursor-pointer hover:bg-indigo-100/50 transition-colors" onClick={() => toggleDashboardAreaRow(area.area)} title="คลิกเพื่อดู/ซ่อน สาขา">
-                                  <td className="px-4 py-2.5 align-middle">
-                                    <div className="flex items-center">
-                                      {expandedAreas[area.area] ? <Icon name="chevron-down" size={16} className="mr-1 text-indigo-500"/> : <Icon name="chevron-right" size={16} className="mr-1 text-indigo-400"/>}
-                                      <Icon name="map-fill" size={14} className="mr-1.5 text-indigo-500"/>
-                                      <span className="font-black text-indigo-800 text-xs">{area.area}</span>
-                                      <span className="ml-2 text-[9px] bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-600 font-bold shadow-sm">รวม {area.totalVacancies} ตำแหน่ง</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2.5 align-middle">
-                                    <div className="flex flex-wrap gap-1.5 items-center">
-                                      {activeStatusesInArea.length > 0 ? activeStatusesInArea.map(status => {
-                                        let shortStatus = status.includes('Promote') ? 'Promote' : status;
-                                        return (
-                                          <div key={status} className="shrink-0 flex justify-start">
-                                            <span 
-                                              onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`สถานะ: ${status} (${area.area})`, 'vacancy', status, null, area.area); }}
-                                              className="px-1.5 py-0.5 rounded shadow-sm text-[9px] font-bold text-center w-full truncate cursor-pointer hover:opacity-80 transition-opacity" 
-                                              style={{backgroundColor:(VACANCY_COLORS[status] || '#cbd5e1')+'15', color:VACANCY_COLORS[status] || '#64748b', border: `1px solid ${(VACANCY_COLORS[status] || '#cbd5e1')}30`}} 
-                                              title={`คลิกเพื่อดูข้อมูล ${status}`}
-                                            >
-                                              {shortStatus} {area.statusCounts[status]}
-                                            </span>
-                                          </div>
-                                        );
-                                      }) : <span className="text-[10px] text-slate-400 font-bold">- ไม่มีข้อมูล -</span>}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2.5 align-middle">
-                                    <div className="w-[85px] shrink-0">
-                                      <span 
-                                         onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`ผู้สมัครทั้งหมด (${area.area})`, 'applicant', 'all', null, area.area); }}
-                                         className="text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 shadow-sm w-full block text-center truncate cursor-pointer hover:bg-blue-100 transition-colors"
-                                      >
-                                        Candidate {area.candidateCount}
-                                      </span>
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-2.5 align-middle pr-6">
-                                    <div className="flex items-center justify-between mb-0.5">
-                                      <span className="text-[8px] font-bold text-indigo-500 uppercase tracking-wider">Area Progress</span>
-                                      <span className="text-[11px] font-black text-indigo-700">{area.progressPct}%</span>
-                                    </div>
-                                    <div className="w-full bg-indigo-100/50 rounded-full h-1 overflow-hidden shadow-inner border border-indigo-200/30">
-                                      <div className={`h-full bg-gradient-to-r transition-all duration-1000 ease-out ${area.progressPct === 100 ? 'from-emerald-400 to-emerald-500' : 'from-blue-400 to-indigo-500'}`} style={{ width: `${area.progressPct}%` }}></div>
-                                    </div>
-                                  </td>
-                                </tr>
-
-                                {expandedAreas[area.area] && area.branches.map((branch) => (
-                                  <React.Fragment key={branch.branchCode}>
-                                    <tr className="bg-slate-50/50 border-b border-slate-50 cursor-pointer hover:bg-blue-50/30 transition-colors animate-in slide-in-from-top-1 duration-200" onClick={() => toggleBranch(branch.branchCode)} title="คลิกเพื่อดู/ซ่อน ตำแหน่งงาน">
-                                      <td className="px-4 py-2 pl-8 align-middle">
-                                        <div className="flex items-center">
-                                          {expandedBranches[branch.branchCode] ? <Icon name="chevron-down" size={14} className="mr-1 text-blue-500"/> : <Icon name="chevron-right" size={14} className="mr-1 text-slate-400"/>}
-                                          <Icon name="building" size={12} className="mr-1.5 text-slate-400"/>
-                                          <span className="font-bold text-slate-700 text-[11px]">{branch.branchCode} - {branch.branchName}</span>
-                                        </div>
-                                      </td>
-                                      <td className="px-4 py-2 align-middle">
-                                        <div className="flex flex-wrap gap-3 items-center">
-                                          {activeStatusesInArea.length > 0 ? activeStatusesInArea.map(status => {
-                                            if (branch.statusCounts[status] > 0) {
-                                                let shortStatus = status.includes('Promote') ? 'Promote' : status === 'Vacant' ? 'Vacant' : status;
-                                                return (
-                                                  <span 
-                                                    key={status} 
-                                                    onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`สถานะ: ${status} (สาขา: ${branch.branchName})`, 'vacancy', status, branch.branchCode, null); }}
-                                                    className="text-[11px] font-bold cursor-pointer hover:underline" 
-                                                    style={{color:VACANCY_COLORS[status] || '#94a3b8'}}
-                                                    title={`คลิกเพื่อดูข้อมูล ${status}`}
-                                                  >
-                                                    {shortStatus} {branch.statusCounts[status]}
-                                                  </span>
-                                                );
-                                            }
-                                            return null;
-                                          }) : <span className="text-[10px] text-slate-400">-</span>}
-                                        </div>
-                                      </td>
-                                      <td className="px-4 py-2 align-middle">
-                                        <div className="w-[85px] shrink-0 text-center">
-                                          <span 
-                                             onClick={(e) => { e.stopPropagation(); handleShowDashboardDetail(`ผู้สมัครทั้งหมด (สาขา: ${branch.branchName})`, 'applicant', 'all', branch.branchCode, null); }}
-                                             className="text-[10px] font-bold text-blue-600 cursor-pointer hover:underline"
-                                          >
-                                              Candidate {branch.candidateCount}
-                                          </span>
-                                        </div>
-                                      </td>
-                                      <td className="px-4 py-2 align-middle pr-6">
-                                        <div className="flex items-center justify-between mb-0.5">
-                                          <span className="text-[8px] font-bold text-slate-400">Branch Progress</span>
-                                          <span className="text-[10px] font-black text-slate-600">{branch.progressPct}%</span>
-                                        </div>
-                                        <div className="w-full bg-slate-200/50 rounded-full h-1 overflow-hidden shadow-inner">
-                                          <div className={`h-full transition-all duration-1000 ease-out ${branch.progressPct === 100 ? 'bg-emerald-400' : 'bg-blue-400'}`} style={{ width: `${branch.progressPct}%` }}></div>
-                                        </div>
-                                      </td>
-                                    </tr>
-
-                                    {expandedBranches[branch.branchCode] && branch.vacancies.map((vac) => (
-                                      <tr key={vac.id} className="hover:bg-blue-50/20 transition-colors group bg-white animate-in slide-in-from-top-1 duration-200">
-                                        <td className="px-4 py-2 align-middle pl-14">
-                                          <div className="font-bold text-slate-600 flex items-center text-[10px]">
-                                            <Icon name="briefcase-fill" size={10} className="mr-1.5 text-slate-300 group-hover:text-blue-400 transition-colors"/>
-                                            {vac.position}
-                                          </div>
-                                        </td>
-                                        <td className="px-4 py-2 align-middle">
-                                          <div className="w-20">
-                                             <span className="px-2 py-0.5 rounded text-[10px] font-bold shadow-sm inline-block w-full text-center" style={{backgroundColor:VACANCY_COLORS[vac.insight.computedStatus]+'15', color:VACANCY_COLORS[vac.insight.computedStatus], border: `1px solid ${(VACANCY_COLORS[vac.insight.computedStatus] || '#cbd5e1')}30`}}>
-                                               {vac.insight.computedStatus === 'Promote&Transfer Done' ? 'Promote Done' : vac.insight.computedStatus.includes('Promote') ? 'Promote' : vac.insight.computedStatus}
-                                             </span>
-                                          </div>
-                                        </td>
-                                        <td className="px-4 py-2 align-middle">
-                                          <div className="w-[110px] shrink-0">
-                                            <button onClick={() => handleShowDashboardDetail(`รายชื่อผู้สมัครสาขา: ${vac.branchName}`, 'applicant', 'all', vac.branchCode)} className="flex items-center justify-between w-full bg-slate-50 hover:bg-blue-50 px-2 py-1.5 rounded-lg border border-slate-100 transition-colors group/btn">
-                                               <span className="text-[9px] font-bold text-slate-500 flex items-center group-hover/btn:text-blue-600"><Icon name="people-fill" size={10} className="mr-1"/> รวม {vac.insight.applicantCount} คน</span>
-                                               <span className="text-[8px] text-blue-500 font-bold ml-1 bg-white border border-blue-100 px-1.5 py-0.5 rounded shadow-sm">ดูทั้งหมด</span>
-                                            </button>
-                                          </div>
-                                        </td>
-                                        <td className="px-4 py-2 align-middle pr-6">
-                                          <div className="flex items-center justify-between mb-0.5">
-                                            <span className="text-[10px] font-black text-slate-600">{vac.progressPct}%</span>
-                                            <span className="text-[8px] text-slate-400 font-bold bg-slate-50 px-1 py-0.5 rounded border border-slate-100">{vac.progressPct === 100 ? 'สำเร็จ' : 'รอดำเนินการ'}</span>
-                                          </div>
-                                          <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden shadow-inner border border-slate-100">
-                                            <div className={`h-full rounded-full transition-all duration-1000 ease-out ${vac.progressPct === 100 ? 'bg-emerald-400' : 'bg-gradient-to-r from-blue-300 to-indigo-400'}`} style={{ width: `${vac.progressPct}%` }}></div>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </React.Fragment>
-                                ))}
-                              </React.Fragment>
-                            );
-                          }) : <tr><td colSpan="4" className="p-8 text-center text-slate-400"><Icon name="search" size={28} className="mx-auto mb-2 text-slate-200"/><p className="font-bold text-xs text-slate-500">ไม่มีข้อมูลในเงื่อนไขที่เลือก</p></td></tr>}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {viewApplicants && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95">
-                  <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-start shadow-sm relative z-10">
-                    <div>
-                      <h3 className="font-extrabold text-lg text-slate-800 mb-0.5">{viewApplicants.position}</h3>
-                      <p className="text-xs font-bold text-indigo-600 flex items-center"><Icon name="geo-alt-fill" size={12} className="mr-1"/> {viewApplicants.branchName}</p>
-                    </div>
-                    <button onClick={()=>setViewApplicants(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-2 rounded-full transition-colors shadow-sm"><Icon name="x-lg" size={16}/></button>
-                  </div>
-                  
-                  <div className="p-3 sm:p-4 space-y-2 overflow-y-auto hide-scrollbar bg-slate-50/50 flex-1">
-                    {viewApplicants.list.map(a => (
-                      <div key={a.id} className="p-2.5 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between sm:items-center hover:shadow-md hover:border-blue-300 transition-all bg-white group relative overflow-hidden gap-1.5">
-                        <div className="text-xs z-10">
-                          <p className="font-extrabold text-sm text-slate-800 mb-0.5">{a.name}</p>
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-slate-500 font-medium flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 text-[10px]"><Icon name="telephone-fill" size={10} className="mr-1"/>{a.phone}</p>
-                            {a.resumeBase64 && a.resumeBase64 !== 'Uploaded' && !String(a.resumeBase64).startsWith('Error') && (
-                              <button onClick={(e) => handleViewResume(e, a.resumeBase64, a.resumeName)} className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border hover:bg-blue-600 hover:text-white transition-all shadow-sm">
-                                <Icon name="eye-fill" size={10} className="mr-1" /> ดูเรซูเม่
-                              </button>
-                            )}
-                            {a.resumeBase64 === 'Uploaded' && (
-                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
-                                 <Icon name="paperclip" size={10} className="mr-1 text-emerald-500" /> แนบไฟล์แล้ว
-                               </span>
-                            )}
-                            {a.resumeBase64 && String(a.resumeBase64).startsWith('Error') && (
-                               <span className="text-[10px] font-bold text-red-600 flex items-center bg-red-50 px-2 py-0.5 rounded-lg border border-red-200" title={a.resumeBase64}>
-                                 <Icon name="exclamation-circle-fill" size={10} className="mr-1" /> ล้มเหลว
-                               </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-1 sm:mt-0 flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center z-10 gap-1.5">
-                          <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:STATUS_COLORS[a.status]+'15', color:STATUS_COLORS[a.status], borderColor:STATUS_COLORS[a.status]+'30'}}>
-                            {a.status}
-                          </span>
-                          <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md"><Icon name="person-plus-fill" size={8} className="mr-1"/> {a.ta}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {dashboardDetailModal && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl relative max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                  <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-center shadow-sm relative z-10">
-                    <h3 className="font-extrabold text-lg text-slate-800 flex items-center">
-                       <div className={`p-1.5 rounded-xl mr-2.5 ${dashboardDetailModal.type === 'vacancy' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                         {dashboardDetailModal.type === 'vacancy' ? <Icon name="briefcase-fill" size={16}/> : <Icon name="people-fill" size={16}/>}
-                       </div>
-                       {dashboardDetailModal.title}
-                       <span className="ml-3 bg-slate-800 text-white px-2 py-0.5 rounded-md text-[10px] font-black shadow-md">{dashboardDetailModal.data.length} รายการ</span>
-                    </h3>
-                    <button onClick={()=>setDashboardDetailModal(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-1.5 rounded-full transition-colors shadow-sm"><Icon name="x-lg" size={16}/></button>
-                  </div>
-                  <div className="overflow-y-auto p-3 sm:p-4 space-y-2 flex-1 bg-slate-50/50 hide-scrollbar">
-                    {dashboardDetailModal.data.length === 0 ? (
-                      <div className="text-center text-slate-400 py-10 flex flex-col items-center">
-                        <Icon name="search" size={32} className="text-slate-200 mb-2"/>
-                        <p className="font-bold text-xs">ไม่มีข้อมูลที่ตรงกับสถานะนี้</p>
-                      </div>
-                    ) : (
-                      dashboardDetailModal.data.map((item, idx) => (
-                        <div key={item.id || idx} className="p-2.5 border border-slate-200 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 hover:shadow-md hover:border-blue-300 transition-all bg-white group">
-                          {dashboardDetailModal.type === 'vacancy' ? (
-                            <>
-                              <div className="text-xs">
-                                <p className="font-extrabold text-sm text-slate-800 mb-0.5">{item.position}</p>
-                                <div className="text-slate-500 flex flex-col sm:flex-row font-medium gap-1.5 sm:items-center">
-                                  <div className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
-                                    <Icon name="geo-alt-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold text-[10px]">{item.branchName}</span> 
-                                    <span className="mx-1.5 text-slate-300">|</span> 
-                                    <span className="text-blue-600 font-extrabold uppercase text-[9px]">{item.area}</span>
-                                  </div>
-                                  {['Hired', 'Waiting to Join'].includes(item.insight.computedStatus) && (
-                                    <div className="text-[10px] text-slate-500 flex items-center bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 font-bold">
-                                      <Icon name="person-plus-fill" size={10} className="mr-1"/>
-                                      คนสมัคร: <span className="ml-1">{item.insight.matchedApplicants.find(a => ['ผ่านสัมภาษณ์', 'รอเริ่มงาน'].includes(a.status))?.name || 'ไม่ระบุ'}</span>
-                                    </div>
-                                  )}
-                                  {item.insight.computedStatus === 'Promote&Transfer Done' && item.effectiveDate && (
-                                    <div className="text-[10px] flex items-center bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 font-bold">
-                                      <Icon name="clock-fill" size={10} className="mr-1"/>
-                                      มีผล: <span className="ml-1">{new Date(item.effectiveDate).toLocaleDateString('th')}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-left sm:text-right shrink-0 w-full sm:w-auto flex justify-end">
-                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:VACANCY_COLORS[item.insight.computedStatus]+'15', color:VACANCY_COLORS[item.insight.computedStatus], borderColor:VACANCY_COLORS[item.insight.computedStatus]+'30'}}>
-                                  {item.insight.computedStatus}
-                                </span>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <div className="text-xs">
-                                <p className="font-extrabold text-sm text-slate-800 mb-0.5">{item.name}</p>
-                                <div className="text-slate-500 flex items-center flex-wrap gap-1.5 font-medium">
-                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icon name="briefcase-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.position}</span></span>
-                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icon name="geo-alt-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.branchName}</span></span>
-                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icon name="telephone-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.phone}</span></span>
-                                  
-                                  {item.resumeBase64 && item.resumeBase64 !== 'Uploaded' && !String(item.resumeBase64).startsWith('Error') && (
-                                    <button onClick={(e) => handleViewResume(e, item.resumeBase64, item.resumeName)} className="text-[9px] text-blue-700 hover:text-white font-bold flex items-center bg-blue-50 hover:bg-blue-600 px-2 py-0.5 rounded-md transition-all border border-blue-200 shadow-sm">
-                                      <Icon name="eye-fill" size={10} className="mr-1" /> ดูเรซูเม่
-                                    </button>
-                                  )}
-                                  {item.resumeBase64 === 'Uploaded' && (
-                                    <span className="text-[9px] text-slate-500 font-bold flex items-center bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
-                                      <Icon name="check-circle-fill" size={10} className="mr-1 text-emerald-500" /> มีไฟล์แนบ
-                                    </span>
-                                  )}
-                                  {item.resumeBase64 && String(item.resumeBase64).startsWith('Error') && (
-                                    <span className="text-[9px] text-red-600 font-bold flex items-center bg-red-50 px-2 py-0.5 rounded-md border border-red-200" title={item.resumeBase64}>
-                                      <Icon name="exclamation-circle-fill" size={10} className="mr-1" /> อัปโหลดล้มเหลว
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-left sm:text-right shrink-0 w-full sm:w-auto flex flex-row sm:flex-col justify-between sm:justify-end items-center sm:items-end gap-1.5 mt-2 sm:mt-0">
-                                <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:(STATUS_COLORS[item.status]||'#cbd5e1')+'15', color:STATUS_COLORS[item.status]||'#64748b', borderColor: (STATUS_COLORS[item.status]||'#cbd5e1')+'30'}}>
-                                  {item.status}
-                                </span>
-                                <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md border"><Icon name="person-plus-fill" size={8} className="mr-1 inline"/>{item.ta}</p>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {showSettings && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
-                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
-                  <div className="px-6 py-5 border-b bg-slate-50 flex justify-between items-center"><h3 className="font-extrabold text-xl text-slate-800 flex items-center"><Icon name="gear-fill" className="mr-2.5 text-blue-600"/>ตั้งค่าระบบ</h3><button onClick={()=>setShowSettings(false)} className="text-slate-400 hover:text-slate-800 p-2"><Icon name="x-lg" size={18}/></button></div>
-                  <div className="p-6 space-y-6">
-                    <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200">
-                      <h4 className="font-bold text-amber-800 mb-2"><Icon name="database-fill" size={18} className="mr-2 inline"/>โหมดจำลองฐานข้อมูล (Mock DB)</h4>
-                      <p className="text-xs text-amber-700 mb-3">คุณกำลังอยู่ในโหมดจำลอง ระบบจะดึงข้อมูลจากไฟล์ CSV หากต้องการรีเซ็ตข้อมูลใหม่ทั้งหมด ให้กดปุ่มด้านล่าง</p>
-                      <button onClick={handleResetMockDB} className="bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 hover:text-amber-800 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm w-full text-center">รีเซ็ตข้อมูลทั้งหมดและดึง CSV ใหม่</button>
-                    </div>
-
-                    <div className="bg-green-50 p-5 rounded-2xl border border-green-100 opacity-50"><h4 className="font-bold text-green-800 mb-3"><Icon name="send-fill" size={18} className="mr-2 inline"/>LINE API (ระงับในโหมดจำลอง)</h4><div className="space-y-3"><div><label className="text-[10px] font-bold text-green-700">Token</label><input type="text" disabled className="w-full bg-slate-100 border rounded-xl px-4 py-2 mt-1 text-xs"/></div><div><label className="text-[10px] font-bold text-green-700">Target ID</label><input type="text" disabled className="w-full bg-slate-100 border rounded-xl px-4 py-2 mt-1 text-xs"/></div></div></div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {previewFile && (
-              <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in"><div className="bg-white p-2 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col relative shadow-2xl animate-in zoom-in-95"><div className="absolute -top-5 -right-5 flex space-x-3"><button onClick={() => handleDownloadFile(previewFile.originalUrl || previewFile.base64, previewFile.name)} className="bg-blue-600 text-white rounded-full p-3 shadow-lg"><Icon name="download" size={22}/></button><button onClick={()=>setPreviewFile(null)} className="bg-white text-slate-800 rounded-full p-3 shadow-lg border"><Icon name="x-lg" size={22}/></button></div>{previewFile.base64.startsWith('data:image/') || previewFile.base64.startsWith('data:application/pdf') || previewFile.base64.startsWith('http') ? <iframe src={previewFile.base64} className="w-full h-full rounded-2xl border bg-slate-50"/> : <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50"><Icon name="file-earmark-text-fill" size={48} className="text-blue-500 mb-6"/><h3 className="font-extrabold text-2xl mb-8">{previewFile.name}</h3></div>}</div></div>
-            )}
-          </main>
-        </div>
-      );
+      break;
     }
+  }
+}
+
+function deleteRowById(sheetName, rowId, idColumnName = "rowId") {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) return;
+  const data = sheet.getDataRange().getValues();
+  const idIndex = data[0].indexOf(idColumnName);
+  
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][idIndex]) === String(rowId)) {
+      sheet.deleteRow(i + 1);
+      break;
+    }
+  }
+}
+
+function syncVacancies(vacanciesArray) {
+  if(!vacanciesArray || vacanciesArray.length === 0) return;
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAMES.VACANCY);
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+  
+  const rows = vacanciesArray.map(v => [
+    v.id, v.area, v.branchCode, v.branchName, v.position, v.manualStatus, v.effectiveDate, v.createdAt, v.timestamp
+  ]);
+  
+  if(rows.length > 0) {
+    sheet.getRange(2, 1, rows.length, rows[0].length).setValues(rows);
+  }
+}
+
+// 🟢 ฟังก์ชันสำหรับอัปเดตผู้สมัครจากฝั่ง Pro เข้าตาราง FT โดยไม่ลบของเก่า
+function syncApplicants(appsFromPro) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAMES.FT);
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const idIndex = headers.indexOf("rowId");
+
+  // สร้าง Dictionary เก็บข้อมูลแถวที่มีอยู่แล้ว เพื่อใช้อัปเดต
+  const existingRowsMap = {};
+  for (let i = 1; i < data.length; i++) {
+    const rowId = String(data[i][idIndex]);
+    if (rowId) existingRowsMap[rowId] = i + 1; // เก็บหมายเลขแถว
+  }
+
+  // หาเลขคอลัมน์ที่จะอัปเดต (บวก 1 เพราะใน Apps Script คอลัมน์เริ่มที่ 1)
+  const cStatus = headers.indexOf("Interview_Status") + 1;
+  const cStartStatus = headers.indexOf("Start_Status") + 1;
+  const cStartDate = headers.indexOf("Start_Date") + 1;
+  const cRemark = headers.indexOf("Remark") + 1;
+
+  appsFromPro.forEach(app => {
+    const rowNum = existingRowsMap[String(app.id)];
     
-    try {
-      const root = createRoot(document.getElementById('root'));
-      root.render(<App />);
-    } catch (error) {
-      document.getElementById('root').innerHTML = `
-        <div style="padding: 2rem; background: #fee2e2; color: #b91c1c; border-radius: 1rem; margin: 2rem; font-family: sans-serif;">
-            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาดในระบบ</h2>
-            <p style="margin-top: 1rem; font-weight: bold;">รายละเอียด Error:</p>
-            <p>${error.toString()}</p>
-        </div>
-      `;
+    // ตัวแปรจัดสถานะ
+    let intStatus = app.status;
+    let startStatus = "";
+    if (app.status === 'รอเริ่มงาน' || app.status === 'มาเริ่มงาน' || app.status === 'ไม่มาเริ่มงาน') {
+        intStatus = "ผ่านสัมภาษณ์"; // ถ้าถึงขั้นเริ่มงาน แปลว่าผ่านสัมภาษณ์แล้ว
+        startStatus = app.status;
     }
-</script>
-</body>
-</html>
+
+    if (rowNum) {
+      // 🟢 ถ้ามีข้อมูลอยู่แล้ว (อัปเดตสถานะ)
+      if (cStatus > 0) sheet.getRange(rowNum, cStatus).setValue(intStatus);
+      if (cStartStatus > 0) sheet.getRange(rowNum, cStartStatus).setValue(startStatus);
+      if (cStartDate > 0) sheet.getRange(rowNum, cStartDate).setValue(app.startDate || "");
+      if (cRemark > 0) sheet.getRange(rowNum, cRemark).setValue(app.comment || "");
+    } else {
+      // 🟢 ถ้าเป็นข้อมูลใหม่ที่ถูกเพิ่มผ่านหน้า Pro (เพิ่มแถวใหม่)
+      // โครงสร้าง: ["rowId", "App_Date", "Store_No", "Store_Name", "Candidate_Name", "Phone_No", "Position", "Company", "Department", "Apply_Source", "Interview_Date", "Interview_Status", "Start_Date", "Start_Status", "Remark"]
+      const newRow = [
+        app.id, 
+        app.timestamp, 
+        app.branchCode, 
+        app.branchName, 
+        app.name, 
+        app.phone, 
+        app.position, 
+        "", // Company (Pro edition ไม่ได้บังคับกรอก)
+        "", // Department
+        app.source, 
+        "", // Interview_Date
+        intStatus, 
+        app.startDate || "", 
+        startStatus, 
+        app.comment || ""
+      ];
+      sheet.appendRow(newRow);
+    }
+  });
+}
