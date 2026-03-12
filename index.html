@@ -16,21 +16,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
-  <script>
-    window.require = function(moduleName) {
-      if (moduleName === 'react') return window.React;
-      if (moduleName === 'react/jsx-runtime') return { 
-        jsx: window.React.createElement, 
-        jsxs: window.React.createElement, 
-        Fragment: window.React.Fragment 
-      };
-      return null;
-    };
-  </script>
-
-  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.6/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.6/babel.min.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700;800&display=swap');
@@ -85,7 +73,10 @@
 <div id="app-main" class="app-section">
     <nav class="navbar-custom">
       <div class="container-fluid d-flex justify-content-between align-items-center">
-        <div class="brand-logo"><i class="bi bi-people-fill"></i> HR Portal <span class="badge bg-primary fs-6 ms-2">PRO</span></div>
+        <div class="brand-logo">
+            <i class="bi bi-people-fill"></i> HR Portal 
+            <span class="badge bg-warning text-dark fs-6 ms-2">MOCK DB MODE</span>
+        </div>
         <div class="text-secondary fw-bold" id="clock">00:00</div>
       </div>
     </nav>
@@ -214,7 +205,7 @@
     <div class="modal fade" id="editModal" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">แก้ไขข้อมูล (FT)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="editForm" onsubmit="handleUpdate(event)"><input type="hidden" name="rowId" id="editRowId"><div class="row g-3 mb-3"><div class="col-md-6"><label>สถานะสัมภาษณ์</label><select class="form-select interview-status-select" name="interviewStatus" id="editIntStatus"></select></div><div class="col-md-6"><label>สถานะเริ่มงาน</label><select class="form-select start-status-select" name="startStatus" id="editStartStatus"></select></div><div class="col-12"><label>หมายเหตุ</label><textarea class="form-control" name="remark" id="editRemark"></textarea></div></div><button type="submit" class="btn btn-warning w-100">บันทึก</button></form></div></div></div></div>
     <div class="modal fade" id="editModalPT" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">แก้ไขข้อมูล (PT)</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><form id="editFormPT" onsubmit="handleUpdatePT(event)"><input type="hidden" name="rowId" id="editRowIdPT"><div class="row g-3 mb-3"><div class="col-md-4"><label>Find Temp</label><input type="number" class="form-control" name="ptFindTemp" id="editPtFindTemp"></div><div class="col-md-4"><label>Student</label><input type="number" class="form-control" name="ptStudent" id="editPtStudent"></div><div class="col-md-4"><label>Elderly</label><input type="number" class="form-control" name="ptElderly" id="editPtElderly"></div></div><button type="submit" class="btn btn-success w-100">บันทึก</button></form></div></div></div></div>
 
-    <div id="loading" class="loading-overlay"><div class="loader-content"><div class="spinner-border text-primary mb-3"></div><h5 class="fw-bold">กำลังประมวลผล...</h5></div></div>
+    <div id="loading" class="loading-overlay"><div class="loader-content"><div class="spinner-border text-primary mb-3"></div><h5 class="fw-bold">กำลังประมวลผลจำลอง...</h5></div></div>
 </div>
 
 <div id="app-pro" class="app-section active">
@@ -225,7 +216,135 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwbvliaTBJRtASXUZP-z5K4XV4cj_taRR5Y8yg99PyL-kSR5v--FD2f2pdpqxVHHCUvlQ/exec"; 
+    // 🟢 ลิงก์ CSV ตัวใหม่ของคุณ (ตรงตาม 15 คอลัมน์)
+    const MOCK_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_vwj6Mr07U59dZvwMPy5XxAprRE-QRRQgod8zz1grwPMC5z24FnettJ8K0XHgqQJTfqOGy6FyT9mw/pub?gid=1702846553&single=true&output=csv";
+    window.mockDB = null;
+
+    async function initMockDB() {
+        if (window.mockDB) return window.mockDB;
+
+        const localData = localStorage.getItem('mock_db_data_v2');
+        if (localData) {
+            try { 
+                window.mockDB = JSON.parse(localData); 
+                return window.mockDB; 
+            } catch(e) {}
+        }
+        
+        document.getElementById('loading').style.display = 'block';
+        try {
+            const responseBuf = await fetch(MOCK_CSV_URL).then(res => res.arrayBuffer());
+            const wb = XLSX.read(responseBuf, {type: 'array'});
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { raw: false, defval: "" }); 
+            
+            json.forEach((row, idx) => { row.rowId = idx + 1; });
+            
+            window.mockDB = json;
+            localStorage.setItem('mock_db_data_v2', JSON.stringify(window.mockDB)); 
+        } catch (e) {
+            console.error("Mock DB Load Error:", e);
+            window.mockDB = [];
+        }
+        document.getElementById('loading').style.display = 'none';
+        return window.mockDB;
+    }
+    
+    function saveMockDB() {
+        localStorage.setItem('mock_db_data_v2', JSON.stringify(window.mockDB));
+    }
+
+    async function callAPI(actionName, dataPayload = {}) {
+        await initMockDB();
+        const rawData = window.mockDB;
+
+        if (actionName === 'getDropdowns') {
+            const stores = [...new Set(rawData.map(r => String(r.Store_No)))].filter(x=>x&&x!=='undefined');
+            const depts = [...new Set(rawData.map(r => String(r.Department)))].filter(x=>x&&x!=='undefined');
+            const companies = [...new Set(rawData.map(r => String(r.Company)))].filter(x=>x&&x!=='undefined');
+            const sources = [...new Set(rawData.map(r => String(r.Apply_Source)))].filter(x=>x&&x!=='undefined');
+            const intStatuses = [...new Set(rawData.map(r => String(r.Interview_Status)))].filter(x=>x&&x!=='undefined');
+            const startStatuses = [...new Set(rawData.map(r => String(r.Start_Status)))].filter(x=>x&&x!=='undefined');
+
+            const posMap = {};
+            rawData.forEach(r => {
+                if(r.Department && r.Position) {
+                    if(!posMap[r.Department]) posMap[r.Department] = new Set();
+                    posMap[r.Department].add(r.Position);
+                }
+            });
+            const formattedPosMap = {};
+            for(let key in posMap) formattedPosMap[key] = Array.from(posMap[key]);
+
+            return {
+                stores: stores.length ? stores : ["103", "70", "115"],
+                departments: depts.length ? depts : ["Picker", "Customer Service", "Bakery"],
+                companies: companies.length ? companies : ["ADC", "SML"],
+                sources: sources.length ? sources : ["Walk-in", "Facebook"],
+                interviewStatuses: intStatuses.length ? intStatuses : ["รอพิจารณาประวัติ", "ผ่านสัมภาษณ์"],
+                startStatuses: startStatuses.length ? startStatuses : ["รอเริ่มงาน", "มาเริ่มงาน"],
+                positionMap: formattedPosMap
+            };
+        }
+        
+        if (actionName === 'searchFT') {
+            const storeNo = dataPayload;
+            return rawData.filter(r => String(r.Store_No) === String(storeNo)).map(r => ({
+                rowId: r.rowId,
+                appDate: r.App_Date,
+                storeNo: r.Store_No,
+                candidateName: r.Candidate_Name,
+                phoneNo: r.Phone_No,
+                position: r.Position,
+                interviewStatus: r.Interview_Status,
+                startStatus: r.Start_Status,
+                remark: r.Remark
+            }));
+        }
+
+        if (actionName === 'searchPT') return []; 
+        if (actionName === 'exportData') return rawData; 
+
+        if (actionName === 'submitForm') {
+            const newRow = {
+                rowId: Date.now(),
+                App_Date: dataPayload.appDate,
+                Store_No: dataPayload.storeNo,
+                Candidate_Name: dataPayload.candidateName,
+                Phone_No: dataPayload.phoneNo,
+                Position: dataPayload.position,
+                Company: dataPayload.company,
+                Department: document.getElementById('addDeptSelect').value,
+                Apply_Source: dataPayload.applySource,
+                Interview_Date: dataPayload.interviewDate,
+                Interview_Status: dataPayload.interviewStatus,
+                Start_Date: dataPayload.startDate,
+                Start_Status: dataPayload.startStatus,
+                Remark: dataPayload.remark
+            };
+            window.mockDB.unshift(newRow); 
+            saveMockDB();
+            return { result: 'success' };
+        }
+
+        if (actionName === 'updateData') {
+             const row = window.mockDB.find(r => String(r.rowId) === String(dataPayload.rowId));
+             if(row) {
+                 row.Interview_Status = dataPayload.interviewStatus;
+                 row.Start_Status = dataPayload.startStatus;
+                 row.Remark = dataPayload.remark;
+                 saveMockDB();
+             }
+             return { result: 'success' };
+        }
+        
+        if (actionName === 'deleteData') {
+            window.mockDB = window.mockDB.filter(r => String(r.rowId) !== String(dataPayload.rowId));
+            saveMockDB();
+            return { result: 'success' };
+        }
+
+        return { result: 'success' };
+    }
 
     function switchApp(appType) {
         if(appType === 'main') {
@@ -235,14 +354,6 @@
             document.getElementById('app-main').classList.remove('active'); document.getElementById('app-pro').classList.add('active');
             document.getElementById('btn-show-main').className = 'btn btn-outline-light fw-bold px-4 text-dark'; document.getElementById('btn-show-pro').className = 'btn btn-primary fw-bold px-4';
         }
-    }
-
-    async function callAPI(actionName, dataPayload = {}) {
-        try {
-            const response = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: actionName, payload: dataPayload }) });
-            const res = await response.json();
-            if (res.status === 'success') return res.data; else throw new Error(res.error || 'Unknown server error');
-        } catch (error) { throw error; }
     }
 
     setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString('th-TH', {hour: '2-digit', minute:'2-digit'}), 1000);
@@ -305,23 +416,6 @@
         });
     }
 
-    async function loadReportPT() {
-        const storeNo = document.getElementById('filterStorePT').value; if (!storeNo) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกสาขาก่อน', 'warning');
-        document.getElementById('loading').style.display = 'block';
-        try {
-            const data = await callAPI("searchPT", storeNo); document.getElementById('loading').style.display = 'none'; const tbody = document.getElementById('reportBodyPT'); tbody.innerHTML = '';
-            if (!data || data.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5">ไม่พบข้อมูล</td></tr>'; return; }
-            data.forEach(row => {
-                const rowJson = JSON.stringify(row).replace(/"/g, '&quot;');
-                tbody.innerHTML += `<tr><td>${formatDate(row.ptDate)}</td><td>${escapeHTML(row.ptStoreNo)}</td><td>${escapeHTML(row.ptDepartment)}</td><td class="text-center">${escapeHTML(row.ptFindTemp || 0)}</td><td class="text-center">${escapeHTML(row.ptStudent || 0)}</td><td class="text-center">${escapeHTML(row.ptElderly || 0)}</td>
-                    <td class="text-center"><button class="btn btn-sm btn-light border" onclick="openEditModalPT(${rowJson})"><i class="bi bi-pencil-square text-success"></i></button><button class="btn btn-sm btn-light border ms-1" onclick="handleDelete(${row.rowId}, 'Part-time Record', 'PT')"><i class="bi bi-trash3 text-danger"></i></button></td></tr>`;
-            });
-        } catch(err) { document.getElementById('loading').style.display = 'none'; Swal.fire('Error', err.message, 'error'); }
-    }
-
-    let debounceTimerPT; function debounceSearchPT() { clearTimeout(debounceTimerPT); debounceTimerPT = setTimeout(() => { filterTablePT('dataTablePT', 'searchInputPT'); }, 300); }
-    function filterTablePT(tableId, inputId) { const input = document.getElementById(inputId); const filter = input.value.toUpperCase(); const table = document.getElementById(tableId); const tr = table.getElementsByTagName("tr"); for (let i = 1; i < tr.length; i++) { let txtValue = tr[i].textContent || tr[i].innerText; if (txtValue.toUpperCase().indexOf(filter) > -1) { tr[i].style.display = ""; } else { tr[i].style.display = "none"; } } }
-
     async function loadSalesSummary() {
       document.getElementById('loading').style.display = 'block'; 
       try {
@@ -345,16 +439,16 @@
     }
 
     function handleCreate(e) { e.preventDefault(); submitData('addForm', 'submitForm', 'บันทึกสำเร็จ'); }
-    function handleCreatePT(e) { e.preventDefault(); submitData('addFormPT', 'submitPartTimeForm', 'บันทึก PT สำเร็จ'); }
+    function handleCreatePT(e) { e.preventDefault(); submitData('addFormPT', 'submitForm', 'บันทึก PT สำเร็จ'); }
     function handleUpdate(e) { e.preventDefault(); submitData('editForm', 'updateData', 'แก้ไขสำเร็จ', true, 'FT'); }
-    function handleUpdatePT(e) { e.preventDefault(); submitData('editFormPT', 'updatePartTimeData', 'แก้ไข PT สำเร็จ', true, 'PT'); }
+    function handleUpdatePT(e) { e.preventDefault(); submitData('editFormPT', 'updateData', 'แก้ไข PT สำเร็จ', true, 'PT'); }
 
     async function submitData(formId, actionName, msg, isUpdate = false, type = 'FT') {
       document.getElementById('loading').style.display = 'block'; const obj = {}; new FormData(document.getElementById(formId)).forEach((v, k) => obj[k] = v);
       try { await callAPI(actionName, obj); document.getElementById('loading').style.display = 'none'; showToast('success', msg); if(isUpdate) { if(formId === 'editFormPT') { bootstrap.Modal.getInstance(document.getElementById('editModalPT')).hide(); loadReportPT(); } else { bootstrap.Modal.getInstance(document.getElementById('editModal')).hide(); loadReportFT(); } } else { document.getElementById(formId).reset(); } } catch(err) { document.getElementById('loading').style.display = 'none'; }
     }
 
-    function handleDelete(rowId, name, type) { Swal.fire({ title: 'ลบข้อมูล?', text: `ยืนยันการลบ: ${name}`, icon: 'warning', showCancelButton: true }).then(async (result) => { if (result.isConfirmed) { document.getElementById('loading').style.display = 'block'; try { await callAPI("deleteData", {rowId: rowId, type: type}); document.getElementById('loading').style.display = 'none'; showToast('success', 'ลบสำเร็จ'); if(type === 'FT') loadReportFT(); else loadReportPT(); } catch(err) { document.getElementById('loading').style.display = 'none'; } } }); }
+    function handleDelete(rowId, name, type) { Swal.fire({ title: 'ลบข้อมูลจำลอง?', text: `ยืนยันการลบ: ${name}`, icon: 'warning', showCancelButton: true }).then(async (result) => { if (result.isConfirmed) { document.getElementById('loading').style.display = 'block'; try { await callAPI("deleteData", {rowId: rowId, type: type}); document.getElementById('loading').style.display = 'none'; showToast('success', 'ลบสำเร็จ'); if(type === 'FT') loadReportFT(); else loadReportPT(); } catch(err) { document.getElementById('loading').style.display = 'none'; } } }); }
 
     function openEditModal(data) { document.getElementById('editRowId').value = data.rowId; document.getElementById('editIntStatus').value = data.interviewStatus; document.getElementById('editStartStatus').value = data.startStatus; document.getElementById('editRemark').value = data.remark; new bootstrap.Modal(document.getElementById('editModal')).show(); }
     function openEditModalPT(data) { document.getElementById('editRowIdPT').value = data.rowId; document.getElementById('editPtFindTemp').value = data.ptFindTemp; document.getElementById('editPtStudent').value = data.ptStudent; document.getElementById('editPtElderly').value = data.ptElderly; new bootstrap.Modal(document.getElementById('editModalPT')).show(); }
@@ -363,57 +457,13 @@
 </script>
 
 <script type="text/babel" data-presets="react,env">
-    /* @jsx React.createElement */
-    /* @jsxFrag React.Fragment */
-    
-    const React = window.React;
-    const ReactDOM = window.ReactDOM;
     const { useState, useMemo, useEffect } = React;
     const { createRoot } = ReactDOM;
     
-    // 🟢 สร้างระบบ Icon สำรองด้วย Bootstrap Icons ที่มีอยู่แล้ว 
+    // 🟢 ระบบไอคอนที่ปลอดภัย 100% ดึงจาก Bootstrap Icons
     const Icon = ({ name, size = 16, className = '', title = '' }) => (
       <i className={`bi bi-${name} ${className} inline-block`} style={{ fontSize: size, lineHeight: 1 }} title={title}></i>
     );
-
-    // 🟢 สร้างตัวแปร Icons แทนการดึงจากไลบรารีภายนอก
-    const Icons = {
-      Users: (p) => <Icon name="people-fill" {...p} />,
-      UserPlus: (p) => <Icon name="person-plus-fill" {...p} />,
-      BarChart3: (p) => <Icon name="bar-chart-fill" {...p} />,
-      Building2: (p) => <Icon name="building" {...p} />,
-      CheckCircle2: (p) => <Icon name="check-circle-fill" {...p} />,
-      Clock: (p) => <Icon name="clock-fill" {...p} />,
-      MapPin: (p) => <Icon name="geo-alt-fill" {...p} />,
-      Search: (p) => <Icon name="search" {...p} />,
-      SearchIcon: (p) => <Icon name="search" {...p} />,
-      AlertCircle: (p) => <Icon name="exclamation-circle-fill" {...p} />,
-      FileText: (p) => <Icon name="file-earmark-text-fill" {...p} />,
-      Briefcase: (p) => <Icon name="briefcase-fill" {...p} />,
-      Phone: (p) => <Icon name="telephone-fill" {...p} />,
-      Target: (p) => <Icon name="bullseye" {...p} />,
-      Edit: (p) => <Icon name="pencil-square" {...p} />,
-      Trash2: (p) => <Icon name="trash-fill" {...p} />,
-      X: (p) => <Icon name="x-lg" {...p} />,
-      BellRing: (p) => <Icon name="bell-fill" {...p} />,
-      Download: (p) => <Icon name="download" {...p} />,
-      Paperclip: (p) => <Icon name="paperclip" {...p} />,
-      Upload: (p) => <Icon name="upload" {...p} />,
-      Eye: (p) => <Icon name="eye-fill" {...p} />,
-      Settings: (p) => <Icon name="gear-fill" {...p} />,
-      Check: (p) => <Icon name="check-lg" {...p} />,
-      Filter: (p) => <Icon name="funnel-fill" {...p} />,
-      Loader2: (p) => <Icon name="arrow-repeat" className={`animate-spin ${p.className||''}`} {...p} />,
-      Send: (p) => <Icon name="send-fill" {...p} />,
-      Printer: (p) => <Icon name="printer-fill" {...p} />,
-      ChevronDown: (p) => <Icon name="chevron-down" {...p} />,
-      ChevronRight: (p) => <Icon name="chevron-right" {...p} />,
-      ImageIcon: (p) => <Icon name="image" {...p} />,
-      Database: (p) => <Icon name="database-fill" {...p} />,
-      MapIcon: (p) => <Icon name="map-fill" {...p} />,
-    };
-
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwbvliaTBJRtASXUZP-z5K4XV4cj_taRR5Y8yg99PyL-kSR5v--FD2f2pdpqxVHHCUvlQ/exec"; 
 
     const STATUS_COLORS = { 'รอพิจารณาประวัติ': '#06B6D4', 'ผ่านสัมภาษณ์': '#10B981', 'รอผลสัมภาษณ์': '#3B82F6', 'ติดต่อผู้สมัครไม่ได้': '#64748B', 'อยู่ระหว่างนัดสัมภาษณ์': '#F59E0B', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด': '#EF4444', 'ไม่ผ่านสัมภาษณ์': '#DC2626', 'ไม่มีตำแหน่งงานว่าง': '#94A3B8', 'สำรอง/เก็บไว้พิจารณา': '#8B5CF6', 'ตรวจสุขภาพ': '#06B6D4', 'รอเริ่มงาน': '#0EA5E9', 'อื่นๆ': '#F97316' };
     const VACANCY_COLORS = { 'Vacant': '#F59E0B', 'Promote&Transfer': '#8B5CF6', 'Promote&Transfer Done': '#10B981', 'Hold': '#64748B', 'Closed': '#94A3B8', 'รอตรวจสุขภาพ': '#06B6D4', 'Waiting to Join': '#0EA5E9', 'Hired': '#10B981' };
@@ -487,8 +537,6 @@
       const [vacancies, setVacancies] = useState([]);
       const [editVacId, setEditVacId] = useState(null);
       const [editVacForm, setEditVacForm] = useState({});
-      const [lineToken, setLineToken] = useState(localStorage.getItem('hr_line_token') || '');
-      const [lineTargetId, setLineTargetId] = useState(localStorage.getItem('hr_line_target_id') || '');
       const [dashboardTA, setDashboardTA] = useState('ALL');
       const [dashboardDetailModal, setDashboardDetailModal] = useState(null);
       const [vacancyPositionFilter, setVacancyPositionFilter] = useState('');
@@ -530,42 +578,70 @@
         return { applicantCount, computedStatus, slaDays, matchedApplicants };
       };
 
+      // 🟢 ดึงข้อมูลผ่านระบบ Mock DB ที่เชื่อมกับ CSV ตัวใหม่ 15 คอลัมน์
       const fetchFreshData = async () => {
-        if (!GOOGLE_SCRIPT_URL) return null;
-        try {
-          const res = await fetch(`${GOOGLE_SCRIPT_URL}?api=react_init&t=${new Date().getTime()}`);
-          const data = await res.json();
-          let loadedApps = []; let loadedVacs = [];
-          if (data.applicants) loadedApps = data.applicants.map(a => ({...a, id: String(a.id), branchCode: String(a.branchCode).padStart(3, '0')}));
-          if (data.vacancies) loadedVacs = data.vacancies.map(v => ({...v, id: String(v.id), branchCode: String(v.branchCode).padStart(3, '0')}));
-          setApplicants(loadedApps); setVacancies(loadedVacs);
-          const safeAppsForLocal = loadedApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !String(app.resumeBase64).startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
-          localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal));
-          localStorage.setItem('hr_vacancies', JSON.stringify(loadedVacs));
-          return data;
-        } catch (error) { console.error('Fetch error:', error); throw error; }
+        await window.initMockDB();
+        const rawData = window.mockDB;
+        
+        const branchMap = {};
+        rawData.forEach(r => {
+            if(r.Store_No && !branchMap[r.Store_No]) {
+                const codeNum = parseInt(r.Store_No) || 0;
+                const mockArea = 'Area ' + ((codeNum % 4) + 1);
+                branchMap[r.Store_No] = { code: String(r.Store_No).padStart(3, '0'), name: r.Store_Name || 'สาขา ' + r.Store_No, area: mockArea };
+            }
+        });
+        const branches = Object.values(branchMap);
+
+        const positions = [...new Set(rawData.map(r => r.Position))].filter(x=>x&&x!=='undefined').map(p => ({ position: p, recruit: 'TA_Test', area: '' }));
+
+        // Mapping 15 คอลัมน์จาก CSV
+        const loadedApps = rawData.map(r => ({
+            id: String(r.rowId),
+            branchCode: String(r.Store_No).padStart(3, '0'),
+            branchName: r.Store_Name || 'สาขา ' + r.Store_No,
+            position: r.Position,
+            name: r.Candidate_Name,
+            phone: r.Phone_No,
+            source: r.Apply_Source,
+            status: (r.Start_Status && r.Start_Status !== 'undefined' && r.Start_Status !== "") ? r.Start_Status : ((r.Interview_Status && r.Interview_Status !== 'undefined' && r.Interview_Status !== "") ? r.Interview_Status : 'รอพิจารณาประวัติ'),
+            comment: r.Remark,
+            startDate: r.Start_Date,
+            ta: 'TA_Test',
+            timestamp: r.App_Date,
+            updatedAt: Date.now() - Math.floor(Math.random() * 100000)
+        }));
+
+        const data = {
+            branches: branches.length > 0 ? branches : [{ code: '001', name: 'สาขาทดสอบ', area: 'Area 1' }],
+            tas: ['TA_Test', 'TA_Admin'],
+            positions: positions.length > 0 ? positions : [{ position: 'พนักงานขาย', recruit: 'TA_Test', area: '' }],
+            statuses: ['รอพิจารณาประวัติ', 'ผ่านสัมภาษณ์', 'รอผลสัมภาษณ์', 'ติดต่อผู้สมัครไม่ได้', 'อยู่ระหว่างนัดสัมภาษณ์', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ', 'รอเริ่มงาน', 'อื่นๆ', 'มาเริ่มงาน', 'ไม่มาเริ่มงาน'],
+            vacancyStatuses: ['Vacant', 'Promote&Transfer', 'Promote&Transfer Done', 'Hold', 'Closed'],
+            applicants: loadedApps,
+            vacancies: JSON.parse(localStorage.getItem('hr_vacancies') || '[]')
+        };
+
+        setAppBranches(data.branches);
+        setAppTAs(data.tas);
+        setAppPositions(data.positions);
+        setAppStatuses(data.statuses);
+        setAppVacancyStatuses(data.vacancyStatuses);
+        setApplicants(data.applicants);
+        setVacancies(data.vacancies);
+        
+        return data;
       };
 
       useEffect(() => {
-        const normalizePositions = (positions) => { return positions.map(p => { if (typeof p === 'string') return { position: p, recruit: '', area: '' }; return { position: String(p.position || p.name || '').trim(), recruit: String(p.recruit || '').trim(), area: String(p.area || '').trim() }; }); };
         const initLoad = async () => {
           setIsLoading(true); setCloudStatus('loading');
           try {
-            const data = await fetchFreshData(); 
-            if (data) {
-              setCloudStatus('connected');
-              if (data.branches && data.branches.length > 0) { setAppBranches(data.branches.map(b => ({...b, code: String(b.code).padStart(3, '0'), name: String(b.name).trim() === 'Ma' ? 'สาขาศาลายา' : String(b.name).trim()}))); }
-              if (data.tas && data.tas.length > 0) setAppTAs(data.tas.map(t => String(t.name || t)));
-              if (data.positions && data.positions.length > 0) setAppPositions(normalizePositions(data.positions));
-              if (data.statuses && data.statuses.length > 0) setAppStatuses(data.statuses);
-              if (data.vacancyStatuses && data.vacancyStatuses.length > 0) setAppVacancyStatuses(data.vacancyStatuses);
-            }
+            await fetchFreshData(); 
+            setCloudStatus('connected');
           } catch (e) {
             setCloudStatus('error');
-            let loadedApps = []; let loadedVacs = [];
-            let localApps = localStorage.getItem('hr_applicants'); let localVacs = localStorage.getItem('hr_vacancies');
-            if (localApps) loadedApps = JSON.parse(localApps) || []; if (localVacs) loadedVacs = JSON.parse(localVacs) || [];
-            setApplicants(loadedApps); setVacancies(loadedVacs);
+            console.error(e);
           }
           setIsLoading(false);
         };
@@ -590,27 +666,8 @@
       const syncToCloud = async (newApps, newVacs, forceSync = false) => {
         const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 }));
         try { localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal)); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs)); } catch (err) {}
-        const isSafeToSync = forceSync || cloudStatus === 'connected' || cloudStatus === 'syncing';
-        if (!isSafeToSync) { alert('⚠️ คุณอยู่ใน "โหมดออฟไลน์" ระบบจะบันทึกในเครื่องเท่านั้น'); return; }
-        if (GOOGLE_SCRIPT_URL) {
-          try {
-            setCloudStatus('syncing');
-            await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'saveAll', applicants: newApps, vacancies: newVacs }) });
-            setTimeout(() => setCloudStatus('connected'), 1000);
-          } catch (error) { setCloudStatus('error'); throw error; }
-        }
-      };
-
-      const syncMasterToCloud = async (newBranches, newTAs, newPositions) => {
-        if (cloudStatus === 'error') { alert('❌ ออฟไลน์อยู่ อัปเดต Master ไม่ได้'); return; }
-        setIsLoading(true); setCloudStatus('syncing');
-        if (GOOGLE_SCRIPT_URL) {
-          try {
-            await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'updateMaster', branches: newBranches, tas: newTAs.map(name => ({name})), positions: newPositions }) });
-            setCloudStatus('connected'); alert('อัปเดต Master Data สำเร็จ!');
-          } catch (error) { setCloudStatus('error'); alert('อัปเดตไม่สำเร็จ'); }
-        }
-        setIsLoading(false);
+        setCloudStatus('syncing');
+        setTimeout(() => setCloudStatus('connected'), 600);
       };
 
       const exportDashboardToPDF = () => {
@@ -631,19 +688,14 @@
         if (formData.status === 'รอเริ่มงาน' && !formData.startDate) { alert('กรุณาระบุวันที่เริ่มงาน'); return; }
         setIsSaving(true);
         const newRecord = { id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), ta: selectedTA, branchCode: String(addingApplicantFor.branchCode).padStart(3, '0'), branchName: addingApplicantFor.branchName, position: addingApplicantFor.position, ...formData, timestamp: getConsistentTimestamp(), updatedAt: Date.now() };
-        const newApps = [...applicants, newRecord]; setApplicants(newApps);
+        const newApps = [newRecord, ...applicants]; setApplicants(newApps);
         setFormData({ name: '', phone: '', source: 'Walk-in at Store', status: '', comment: '', startDate: '', resumeName: '', resumeBase64: '' }); setAddingApplicantFor(null); 
-        await syncToCloud(newApps, vacancies); try { await fetchFreshData(); } catch (err) {} setIsSaving(false); 
+        await syncToCloud(newApps, vacancies); setIsSaving(false); 
       };
 
       const deleteApplicant = async (id) => {
         if (window.confirm('ลบข้อมูลผู้สมัครรายนี้?')) {
-          const appToDelete = applicants.find(a => String(a.id) === String(id));
-          const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); 
-          const safeAppsForLocal = newApps.map(app => ({ ...app, resumeBase64: (app.resumeBase64 && app.resumeBase64.length > 1000 && !app.resumeBase64.startsWith('http')) ? 'Uploaded' : app.resumeBase64 })); localStorage.setItem('hr_applicants', JSON.stringify(safeAppsForLocal));
-          if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') {
-            try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Applicants', recordId: id, fileUrl: appToDelete ? appToDelete.resumeBase64 : null }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); }
-          }
+          const newApps = applicants.filter(a => String(a.id) !== String(id)); setApplicants(newApps); await syncToCloud(newApps, vacancies);
         }
       };
 
@@ -654,7 +706,7 @@
         setIsSaving(true);
         if (!['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(editAppForm.status)) editAppForm.comment = '';
         const newApps = applicants.map(a => String(a.id) === String(editAppId) ? { ...editAppForm, updatedAt: Date.now() } : a); setApplicants(newApps); 
-        await syncToCloud(newApps, vacancies); try { await fetchFreshData(); } catch (err) {} setIsSaving(false); setEditAppId(null);
+        await syncToCloud(newApps, vacancies); setIsSaving(false); setEditAppId(null);
       };
 
       const handleInlineStatusChange = (app, newStatus) => {
@@ -669,17 +721,10 @@
         if (vacancyForm.manualStatus === 'Promote&Transfer Done' && !vacancyForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล (Effective Date)'); return; }
         const branch = appBranches.find(b => String(b.code) === String(vacancyForm.branchCode)); if (!branch) { alert('ไม่พบข้อมูลสาขาในระบบ'); return; }
         const newVacancy = { id: Date.now().toString() + '_' + Math.floor(Math.random() * 1000).toString().padStart(3, '0'), area: branch.area, branchCode: String(branch.code).padStart(3, '0'), branchName: branch.name, position: vacancyForm.position, manualStatus: vacancyForm.manualStatus, effectiveDate: vacancyForm.effectiveDate || '', createdAt: Date.now(), timestamp: getConsistentTimestamp() };
-        const newVacs = [...vacancies, newVacancy]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
-        if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') { try { fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'notifyNewVacancy', vacancy: newVacancy }) }); } catch (error) {} }
+        const newVacs = [newVacancy, ...vacancies]; setVacancies(newVacs); setVacancyForm({ branchCode: '', position: '', manualStatus: 'Vacant', effectiveDate: '' }); syncToCloud(applicants, newVacs);
       };
 
-      const deleteVacancy = async (id) => {
-        if (window.confirm('ลบตำแหน่งงานนี้?')) {
-          const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); localStorage.setItem('hr_vacancies', JSON.stringify(newVacs));
-          if (GOOGLE_SCRIPT_URL && cloudStatus === 'connected') { try { setCloudStatus('syncing'); await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'deleteRecord', sheetName: 'Vacancies', recordId: id }) }); setTimeout(() => setCloudStatus('connected'), 1000); } catch (err) { setCloudStatus('error'); } }
-        }
-      };
-
+      const deleteVacancy = async (id) => { if (window.confirm('ลบตำแหน่งงานนี้?')) { const newVacs = vacancies.filter(v => String(v.id) !== String(id)); setVacancies(newVacs); syncToCloud(applicants, newVacs); } };
       const startEditVac = (v) => { setEditVacId(v.id); setEditVacForm({ ...v }); };
       const saveEditVac = () => {
         if (editVacForm.manualStatus === 'Promote&Transfer Done' && !editVacForm.effectiveDate) { alert('กรุณาระบุวันที่มีผล'); return; }
@@ -688,6 +733,7 @@
         setVacancies(newVacs); setEditVacId(null); syncToCloud(applicants, newVacs);
       };
       const closeVacancy = (id) => { const newVacs = vacancies.map(v => String(v.id) === String(id) ? { ...v, manualStatus: 'Closed' } : v); setVacancies(newVacs); syncToCloud(applicants, newVacs); };
+      
       const handleDownloadFile = (fileData, fileName) => {
         if (!fileData || fileData === 'Uploaded') return; const fileString = String(fileData);
         if (fileString.startsWith('http')) { window.open(fileString.replace('/preview', '/view'), '_blank'); return; }
@@ -695,23 +741,23 @@
       };
 
       const exportToExcel = (dataList, filename) => {
-        if (!dataList || dataList.length === 0) {
-          alert('ไม่มีข้อมูลสำหรับ Export');
-          return;
-        }
+        if (!dataList || dataList.length === 0) { alert('ไม่มีข้อมูลสำหรับ Export'); return; }
         try {
           const ws = window.XLSX.utils.json_to_sheet(dataList);
           const wb = window.XLSX.utils.book_new();
           window.XLSX.utils.book_append_sheet(wb, ws, "Data");
           window.XLSX.writeFile(wb, `${filename}_${new Date().getTime()}.xlsx`);
-        } catch (error) {
-          alert('เกิดข้อผิดพลาดในการ Export: ' + error.message);
-        }
+        } catch (error) { alert('เกิดข้อผิดพลาดในการ Export: ' + error.message); }
       };
 
-      const handleImportCSV = (e) => { alert('ระบบอัปเดตสาขาด้วย CSV ยังไม่เปิดใช้งาน กรุณาตั้งค่าที่ระบบหลังบ้าน (GAS)'); e.target.value = ''; };
-      const handleImportPositionCSV = (e) => { alert('ระบบอัปเดตตำแหน่งด้วย CSV ยังไม่เปิดใช้งาน กรุณาตั้งค่าที่ระบบหลังบ้าน (GAS)'); e.target.value = ''; };
-      const handleImportTACSV = (e) => { alert('ระบบอัปเดต TA ด้วย CSV ยังไม่เปิดใช้งาน กรุณาตั้งค่าที่ระบบหลังบ้าน (GAS)'); e.target.value = ''; };
+      const handleResetMockDB = () => {
+          if(window.confirm("ยืนยันการล้างข้อมูลทั้งหมด? \nระบบจะโหลดข้อมูลใหม่จากไฟล์ CSV ทันที")) {
+              localStorage.removeItem('mock_db_data_v2');
+              localStorage.removeItem('hr_applicants');
+              localStorage.removeItem('hr_vacancies');
+              window.location.reload();
+          }
+      };
 
       const availableBranchesForAreas = useMemo(() => { let branches = appBranches.filter(b => selectedAreas.includes(b.area)); return [...branches].sort((a, b) => { const codeA = parseInt(String(a.code).replace(/\D/g, ''), 10) || 0; const codeB = parseInt(String(b.code).replace(/\D/g, ''), 10) || 0; return codeA - codeB; }); }, [appBranches, selectedAreas]);
       const filteredVacancies = useMemo(() => { return [...vacancies].filter(v => { const areaMatch = selectedAreas.length === 0 || selectedAreas.includes(v.area); const positionMatch = vacancyPositionFilter === '' || v.position === vacancyPositionFilter; const branchMatch = vacancyBranchFilter === '' || String(v.branchCode) === String(vacancyBranchFilter); return areaMatch && positionMatch && branchMatch; }).map(v => ({ ...v, insight: getVacancyInsights(v) })).sort((a, b) => { const numA = parseInt(String(a.area).replace(/\D/g, '')) || 0; const numB = parseInt(String(b.area).replace(/\D/g, '')) || 0; if (numA !== numB) return numA - numB; if (a.branchName !== b.branchName) return String(a.branchName).localeCompare(String(b.branchName), 'th'); return String(a.position).localeCompare(String(b.position), 'th'); }); }, [vacancies, selectedAreas, vacancyPositionFilter, vacancyBranchFilter, applicants]);
@@ -726,17 +772,7 @@
       const dashboardData = useMemo(() => { let apps = dashboardTA === 'ALL' ? applicants : applicants.filter(app => String(app.ta) === String(dashboardTA)); if (dashboardSelectedAreas.length > 0) { apps = apps.filter(a => { const b = appBranches.find(br => String(br.code) === String(a.branchCode)); return b && dashboardSelectedAreas.includes(b.area); }); } if (dashboardBranchFilter) { apps = apps.filter(a => String(a.branchCode) === String(dashboardBranchFilter)); } if (dashboardPositionFilter) { apps = apps.filter(a => a.position === dashboardPositionFilter); } return apps; }, [applicants, dashboardTA, dashboardSelectedAreas, dashboardBranchFilter, dashboardPositionFilter, appBranches]);
       const applicantStats = useMemo(() => { let total = dashboardData.length; let hired = 0, pending = 0, rejected = 0; dashboardData.forEach(a => { if (a.status === 'ผ่านสัมภาษณ์' || (a.status === 'รอเริ่มงาน' && a.startDate && new Date().setHours(0,0,0,0) >= new Date(a.startDate).setHours(0,0,0,0))) { hired++; } else if (['รอพิจารณาประวัติ', 'รอผลสัมภาษณ์', 'อยู่ระหว่างนัดสัมภาษณ์', 'สำรอง/เก็บไว้พิจารณา', 'ตรวจสุขภาพ'].includes(a.status) || (a.status === 'รอเริ่มงาน' && (!a.startDate || new Date().setHours(0,0,0,0) < new Date(a.startDate).setHours(0,0,0,0)))) { pending++; } else { rejected++; } }); return { total, hired, pending, rejected }; }, [dashboardData]);
 
-      const sendLineSummary = async () => {
-        if (!lineToken || !lineTargetId) { alert('กรุณาตั้งค่า LINE Channel Access Token และ Target ID ในเมนูตั้งค่า'); setShowSettings(true); return; }
-        const wantImage = window.confirm('ต้องการแนบ "รูปภาพหน้าจอ Dashboard" ไปพร้อมกับข้อความด้วยหรือไม่?\n\n[OK] = ส่งทั้งข้อความและรูปภาพ\n[Cancel] = ส่งเฉพาะข้อความสรุป');
-        setIsSendingLine(true);
-        const summaryMsg = `\n📊 สรุปรายงานการสรรหาบุคลากร\n👤 ผู้ดูแล: ${dashboardTA}\n-- ตำแหน่งงาน (Vacancies) --\n📍 เปิดรับทั้งหมด: ${vacancyStats.total} อัตรา\n🟢 ได้คนแล้ว: ${vacancyStats.fulfilled} อัตรา (${vacancyStats.progress}%)\n🔴 ว่าง: ${vacancyStats.vacant} อัตรา\n🟣 Promote: ${vacancyStats.promote} อัตรา\n⚪ Hold: ${vacancyStats.hold} อัตรา\n\n-- ข้อมูลผู้สมัคร (Applicants) --\n👥 ผู้สมัครรวม: ${applicantStats.total} คน\n✅ สำเร็จ/รอเริ่มงาน: ${applicantStats.hired} คน\n⏳ รอดำเนินการ: ${applicantStats.pending} คน\n❌ ไม่ผ่าน/ปฏิเสธ: ${applicantStats.rejected} คน\n---\n🕒 อัปเดตล่าสุด: ${getConsistentTimestamp()}`;
-        let imageBase64 = null;
-        if (wantImage) {
-          try { const element = document.getElementById('dashboard-export-area'); if (element && window.html2canvas) { const buttonsToHide = document.querySelectorAll('.hide-on-pdf'); buttonsToHide.forEach(btn => btn.style.display = 'none'); const canvas = await window.html2canvas(element, { scale: 4, useCORS: true, backgroundColor: '#ffffff' }); imageBase64 = canvas.toDataURL('image/png'); buttonsToHide.forEach(btn => btn.style.display = ''); } } catch(e) { alert('ไม่สามารถถ่ายภาพหน้าจอได้ ส่งเฉพาะข้อความแทน'); }
-        }
-        try { await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'sendLineNotify', lineToken: lineToken, targetId: lineTargetId, message: summaryMsg, imageBase64: imageBase64 }) }); setTimeout(() => { alert('ส่งคำสั่งแจ้งเตือนไปยัง LINE แล้ว!'); setIsSendingLine(false); }, 1500); } catch (error) { alert('เกิดข้อผิดพลาดในการส่ง LINE'); setIsSendingLine(false); }
-      };
+      const sendLineSummary = async () => { alert("ในโหมดจำลอง (Mock DB) ระบบจะระงับการส่ง LINE แจ้งเตือนไว้ครับ"); };
 
       const dashboardGroupedData = useMemo(() => {
         let filteredVacs = dashboardVacancies; const areaMap = {};
@@ -791,31 +827,31 @@
           {isLoading && (
             <div className="fixed inset-0 z-[100] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center transition-all">
               <div className="bg-white px-8 py-6 rounded-3xl shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
-                <Icons.Loader2 size={48} className="text-blue-600"/>
-                <span className="font-bold text-slate-700 text-lg">กำลังซิงค์ข้อมูลกับ Google Sheets...</span>
+                <Icon name="arrow-repeat" className="animate-spin text-blue-600" size={48} />
+                <span className="font-bold text-slate-700 text-lg">กำลังโหลดฐานข้อมูลจำลอง...</span>
               </div>
             </div>
           )}
           <nav className="glass-effect border-b border-slate-200/50 sticky top-0 z-30 shadow-sm transition-all duration-300">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row justify-between items-center h-auto md:h-16 py-3 md:py-0">
               <div className="flex items-center space-x-3 mb-3 md:mb-0 w-full md:w-auto justify-center md:justify-start">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/30 shadow-lg flex items-center justify-center text-white"><Icons.Users size={20} /></div>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-blue-500/30 shadow-lg flex items-center justify-center text-white"><Icon name="people-fill" size={20} /></div>
                 <span className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-600 tracking-tight">HR <span className="text-blue-600">Recruit</span></span>
               </div>
               <div className="flex flex-col sm:flex-row items-center w-full md:w-auto space-y-3 sm:space-y-0 sm:space-x-4">
                 <div className="flex space-x-1 bg-slate-100/80 p-1 rounded-2xl whitespace-nowrap shadow-inner border border-slate-200/60 overflow-x-auto w-full sm:w-auto hide-scrollbar justify-start sm:justify-center">
-                  <button onClick={() => setActiveTab('area_hr')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'area_hr' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icons.Briefcase size={16} /><span>Area HR</span></button>
-                  <button onClick={() => setActiveTab('entry')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'entry' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icons.UserPlus size={16} /><span>Recruit</span></button>
-                  <button onClick={() => setActiveTab('dashboard')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icons.BarChart3 size={16} /><span>Dashboard</span></button>
+                  <button onClick={() => setActiveTab('area_hr')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'area_hr' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icon name="briefcase-fill" size={16} /><span>Area HR</span></button>
+                  <button onClick={() => setActiveTab('entry')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'entry' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icon name="person-plus-fill" size={16} /><span>Recruit</span></button>
+                  <button onClick={() => setActiveTab('dashboard')} className={`flex flex-1 sm:flex-none items-center justify-center space-x-2 px-4 py-2 rounded-xl text-sm font-bold transition-all duration-300 ${activeTab === 'dashboard' ? 'bg-white text-blue-700 shadow-md ring-1 ring-slate-900/5' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'}`}><Icon name="bar-chart-fill" size={16} /><span>Dashboard</span></button>
                 </div>
                 <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
                   <div className="hidden lg:flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-white shadow-sm border border-slate-200">
                     {cloudStatus === 'loading' && <><div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div><span className="text-slate-600">กำลังเชื่อมต่อ DB</span></>}
-                    {cloudStatus === 'connected' && <><div className="w-2 h-2 bg-emerald-500 rounded-full"></div><span className="text-emerald-700">ออนไลน์แล้ว</span></>}
-                    {cloudStatus === 'syncing' && <><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div><span className="text-blue-700">กำลังซิงค์...</span></>}
+                    {cloudStatus === 'connected' && <><div className="w-2 h-2 bg-emerald-500 rounded-full"></div><span className="text-emerald-700">จำลอง DB สำเร็จ</span></>}
+                    {cloudStatus === 'syncing' && <><div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div><span className="text-blue-700">กำลังเซฟ...</span></>}
                     {cloudStatus === 'error' && <><div className="w-2 h-2 bg-red-500 rounded-full"></div><span className="text-red-700">ออฟไลน์</span></>}
                   </div>
-                  <button onClick={() => setShowSettings(true)} className="flex flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-sm font-bold shadow-sm border border-slate-200 transition-colors"><Icons.Settings size={16}/><span className="inline">ตั้งค่า</span></button>
+                  <button onClick={() => setShowSettings(true)} className="flex flex-1 sm:flex-none items-center justify-center space-x-1.5 bg-white text-slate-700 hover:text-blue-700 hover:bg-blue-50 px-3 py-2 rounded-xl text-sm font-bold shadow-sm border border-slate-200 transition-colors"><Icon name="gear-fill" size={16}/><span className="inline">ตั้งค่า</span></button>
                 </div>
               </div>
             </div>
@@ -824,14 +860,14 @@
             {activeTab === 'area_hr' && (
               <div className="space-y-6">
                 <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 p-6">
-                  <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-bold flex items-center space-x-2 text-slate-800"><Icons.MapIcon className="text-blue-600" size={24} /><span>เลือก Area ที่ต้องการจัดการ</span></h2></div>
+                  <div className="mb-5 flex items-center justify-between"><h2 className="text-xl font-bold flex items-center space-x-2 text-slate-800"><Icon name="map-fill" className="text-blue-600" size={24} /><span>เลือก Area ที่ต้องการจัดการ</span></h2></div>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {appAreas.map(area => (<button key={area} onClick={() => toggleArea(area)} className={`w-full px-4 py-3 rounded-2xl text-sm font-bold border transition-all duration-200 truncate ${selectedAreas.includes(area) ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-transparent shadow-lg shadow-blue-500/30 transform scale-[1.03]' : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 hover:-translate-y-0.5'}`}>{area}</button>))}
                   </div>
                 </div>
                 {selectedAreas.length > 0 && (
                   <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
-                    <div className="bg-slate-50/80 border-b px-6 py-5 flex items-center space-x-3"><div className="bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-700 p-2.5 rounded-xl shadow-inner"><Icons.Target size={20}/></div><h2 className="font-extrabold text-lg text-slate-800">เปิดตำแหน่งงานว่างใหม่</h2></div>
+                    <div className="bg-slate-50/80 border-b px-6 py-5 flex items-center space-x-3"><div className="bg-gradient-to-br from-blue-100 to-indigo-100 text-blue-700 p-2.5 rounded-xl shadow-inner"><Icon name="bullseye" size={20}/></div><h2 className="font-extrabold text-lg text-slate-800">เปิดตำแหน่งงานว่างใหม่</h2></div>
                     <form onSubmit={handleVacancySubmit} className="p-6 space-y-5">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-1.5"><label className="text-xs font-bold text-slate-500 ml-1">เลือกสาขา</label><select required name="branchCode" value={vacancyForm.branchCode} onChange={handleVacancyInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all"><option value="">-- เลือกสาขา --</option>{availableBranchesForAreas.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select></div>
@@ -839,18 +875,18 @@
                         <div className="space-y-1.5"><label className="text-xs font-bold text-slate-500 ml-1">สถานะเริ่มต้น</label><select required name="manualStatus" value={vacancyForm.manualStatus} onChange={handleVacancyInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all">{appVacancyStatuses.filter(s => s !== 'Closed').map(s => <option key={s} value={s}>{s}</option>)}</select></div>
                         {vacancyForm.manualStatus === 'Promote&Transfer Done' && (<div className="space-y-1.5 md:col-start-3"><label className="text-xs font-bold text-emerald-600 ml-1">ระบุวันที่มีผล (Effective Date)</label><input required type="date" name="effectiveDate" value={vacancyForm.effectiveDate || ''} onChange={handleVacancyInputChange} className="w-full border border-emerald-300 bg-emerald-50 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all" /></div>)}
                       </div>
-                      <div className="flex justify-end pt-2"><button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-2xl shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition-all flex items-center space-x-2"><Icons.Briefcase size={18}/><span>สร้างตำแหน่งงานใหม่</span></button></div>
+                      <div className="flex justify-end pt-2"><button type="submit" className="bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 px-8 rounded-2xl shadow-lg shadow-slate-900/20 hover:-translate-y-0.5 transition-all flex items-center space-x-2"><Icon name="briefcase-fill" size={18}/><span>สร้างตำแหน่งงานใหม่</span></button></div>
                     </form>
                   </div>
                 )}
                 {selectedAreas.length > 0 && (
                   <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 bg-slate-50/50">
-                      <h3 className="font-extrabold text-lg text-slate-800 flex items-center shrink-0"><Icons.SearchIcon size={20} className="mr-2 text-slate-400"/>รายการตำแหน่งงานที่จัดการ</h3>
+                      <h3 className="font-extrabold text-lg text-slate-800 flex items-center shrink-0"><Icon name="search" size={20} className="mr-2 text-slate-400"/>รายการตำแหน่งงานที่จัดการ</h3>
                       <div className="flex flex-row items-center w-full lg:w-auto gap-2.5 overflow-x-auto hide-scrollbar pb-1">
-                        <div className="relative shrink-0 w-36 sm:w-48"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icons.Building2 size={14} className="text-slate-400" /></div><select value={vacancyBranchFilter} onChange={(e) => setVacancyBranchFilter(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:bg-slate-50 transition-colors appearance-none truncate cursor-pointer"><option value="">ทุกสาขา</option>{availableBranchesForAreas.map(b => (<option key={b.code} value={b.code}>{b.code} - {b.name}</option>))}</select></div>
-                        <div className="relative shrink-0 w-40 sm:w-56"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icons.Filter size={14} className="text-slate-400" /></div><select value={vacancyPositionFilter} onChange={(e) => setVacancyPositionFilter(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:bg-slate-50 transition-colors appearance-none truncate cursor-pointer"><option value="">ทุกตำแหน่งงาน</option>{availableVacancyPositions.map(pos => (<option key={pos} value={pos}>{pos}</option>))}</select></div>
-                        <button onClick={() => exportToExcel(filteredVacancies, 'Vacancies')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center shrink-0 hover:bg-slate-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"><Icons.Download size={14} className="mr-1.5"/>Export</button>
+                        <div className="relative shrink-0 w-36 sm:w-48"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icon name="building" size={14} className="text-slate-400" /></div><select value={vacancyBranchFilter} onChange={(e) => setVacancyBranchFilter(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:bg-slate-50 transition-colors appearance-none truncate cursor-pointer"><option value="">ทุกสาขา</option>{availableBranchesForAreas.map(b => (<option key={b.code} value={b.code}>{b.code} - {b.name}</option>))}</select></div>
+                        <div className="relative shrink-0 w-40 sm:w-56"><div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><Icon name="funnel-fill" size={14} className="text-slate-400" /></div><select value={vacancyPositionFilter} onChange={(e) => setVacancyPositionFilter(e.target.value)} className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 bg-white hover:bg-slate-50 transition-colors appearance-none truncate cursor-pointer"><option value="">ทุกตำแหน่งงาน</option>{availableVacancyPositions.map(pos => (<option key={pos} value={pos}>{pos}</option>))}</select></div>
+                        <button onClick={() => exportToExcel(filteredVacancies, 'Vacancies')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center shrink-0 hover:bg-slate-50 hover:text-emerald-600 hover:border-emerald-200 transition-all shadow-sm"><Icon name="download" size={14} className="mr-1.5"/>Export</button>
                       </div>
                     </div>
                     <div className="overflow-x-auto hide-scrollbar">
@@ -871,14 +907,14 @@
                             return (
                               <tr key={v.id} className={`hover:bg-slate-50/80 transition-colors group ${!isActive ? 'bg-slate-50/50' : ''}`}>
                                 <td className="px-6 py-4"><div className={`text-[10px] font-extrabold uppercase tracking-wider mb-0.5 ${isActive ? 'text-blue-600' : 'text-slate-400'}`}>{v.area}</div><div className={`font-bold ${isActive ? 'text-slate-800' : 'text-slate-600'}`}>{v.branchCode} - {v.branchName}</div></td>
-                                <td className={`px-6 py-4 font-extrabold cursor-pointer hover:text-blue-600 transition-colors ${isActive ? 'text-slate-800' : 'text-slate-500'}`} onClick={()=>startEditVac(v)}>{v.position} <Icons.Edit size={14} className="inline opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-blue-500"/></td>
+                                <td className={`px-6 py-4 font-extrabold cursor-pointer hover:text-blue-600 transition-colors ${isActive ? 'text-slate-800' : 'text-slate-500'}`} onClick={()=>startEditVac(v)}>{v.position} <Icon name="pencil-square" size={14} className="inline opacity-0 group-hover:opacity-100 transition-opacity ml-1 text-blue-500"/></td>
                                 <td className={`px-6 py-4 text-center font-black text-xl ${slaDays > 30 ? 'text-red-500' : 'text-slate-600'} ${!isActive ? 'opacity-50' : ''}`}>{slaDays}<span className="text-[10px] font-bold text-slate-400 block -mt-1">DAYS</span></td>
                                 <td className="px-6 py-4 text-center"><button onClick={()=>setViewApplicants({position:v.position, branchName:v.branchName, list:[...matchedApplicants].sort((a,b)=>(b.updatedAt || 0) - (a.updatedAt || 0))})} disabled={applicantCount===0} className={`w-10 h-10 rounded-2xl font-black text-base shadow-sm transition-all ${applicantCount>0?'bg-blue-100 text-blue-700 hover:bg-blue-600 hover:text-white hover:shadow-blue-500/30 hover:-translate-y-0.5':'bg-slate-100 text-slate-400 opacity-50'}`}>{applicantCount}</button></td>
-                                <td className="px-6 py-4"><div className="flex flex-col items-start gap-2"><VacancyBadge status={computedStatus} />{computedStatus === 'Hired' && v.manualStatus !== 'Closed' && (<button onClick={() => closeVacancy(v.id)} className="flex items-center px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all shadow-sm border border-amber-200 animate-pulse"><Icons.BellRing size={12} className="mr-1.5"/> ปิด Job นี้</button>)}{computedStatus === 'Promote&Transfer Done' && v.effectiveDate && (<div className="text-[10px] text-emerald-600 font-bold flex items-center bg-emerald-50 px-2 py-1 rounded-md"><Icons.Clock size={10} className="mr-1"/> มีผล: {new Date(v.effectiveDate).toLocaleDateString('th')}</div>)}</div></td>
-                                <td className="px-6 py-4 text-right space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>startEditVac(v)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Icons.Edit size={18}/></button><button onClick={()=>deleteVacancy(v.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Icons.Trash2 size={18}/></button></td>
+                                <td className="px-6 py-4"><div className="flex flex-col items-start gap-2"><VacancyBadge status={computedStatus} />{computedStatus === 'Hired' && v.manualStatus !== 'Closed' && (<button onClick={() => closeVacancy(v.id)} className="flex items-center px-3 py-1.5 rounded-xl text-[10px] font-extrabold bg-amber-100 text-amber-700 hover:bg-amber-500 hover:text-white transition-all shadow-sm border border-amber-200 animate-pulse"><Icon name="bell-fill" size={12} className="mr-1.5"/> ปิด Job นี้</button>)}{computedStatus === 'Promote&Transfer Done' && v.effectiveDate && (<div className="text-[10px] text-emerald-600 font-bold flex items-center bg-emerald-50 px-2 py-1 rounded-md"><Icon name="clock-fill" size={10} className="mr-1"/> มีผล: {new Date(v.effectiveDate).toLocaleDateString('th')}</div>)}</div></td>
+                                <td className="px-6 py-4 text-right space-x-1 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>startEditVac(v)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Icon name="pencil-square" size={18}/></button><button onClick={()=>deleteVacancy(v.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Icon name="trash-fill" size={18}/></button></td>
                               </tr>
                             )
-                          }) : <tr><td colSpan="6" className="px-6 py-16 text-center"><div className="flex flex-col items-center justify-center text-slate-400"><Icons.SearchIcon size={48} className="mb-4 text-slate-200"/><p className="font-bold text-lg text-slate-500">ไม่มีตำแหน่งงานในเงื่อนไขที่เลือก</p></div></td></tr>}
+                          }) : <tr><td colSpan="6" className="px-6 py-16 text-center"><div className="flex flex-col items-center justify-center text-slate-400"><Icon name="search" size={48} className="mb-4 text-slate-200"/><p className="font-bold text-lg text-slate-500">ไม่มีตำแหน่งงานในเงื่อนไขที่เลือก</p></div></td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -890,7 +926,7 @@
             {activeTab === 'entry' && (
               <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
                 <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <h2 className="text-xl font-bold flex items-center text-slate-800"><Icons.UserPlus className="text-blue-600 mr-2.5" size={24}/> เลือกผู้รับผิดชอบ (Recruiter)</h2>
+                  <h2 className="text-xl font-bold flex items-center text-slate-800"><Icon name="person-plus-fill" className="text-blue-600 mr-2.5" size={24}/> เลือกผู้รับผิดชอบ (Recruiter)</h2>
                   <select value={selectedTA} onChange={e=>setSelectedTA(e.target.value)} className="w-full sm:w-72 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold text-slate-700 outline-none focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm"><option value="">-- ระบุชื่อ TA --</option>{appTAs.map(ta=><option key={ta} value={ta}>{ta}</option>)}</select>
                 </div>
                 {selectedTA && (() => {
@@ -898,7 +934,7 @@
                   <>
                     <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 overflow-hidden">
                       <div className="p-6 py-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 justify-between items-start lg:items-center bg-slate-50/50">
-                        <div className="flex items-center space-x-3 shrink-0"><div className="bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 p-2 rounded-xl shadow-inner"><Icons.Target size={18}/></div><h3 className="font-extrabold text-lg text-slate-800">งานที่รับผิดชอบ</h3></div>
+                        <div className="flex items-center space-x-3 shrink-0"><div className="bg-gradient-to-br from-indigo-100 to-purple-100 text-indigo-700 p-2 rounded-xl shadow-inner"><Icon name="bullseye" size={18}/></div><h3 className="font-extrabold text-lg text-slate-800">งานที่รับผิดชอบ <span className="text-xs font-normal text-slate-500">(Auto-filtered)</span></h3></div>
                         <div className="flex flex-row items-center w-full lg:w-auto gap-2.5 overflow-x-auto hide-scrollbar pb-1">
                           <select value={recruitAreaFilter} onChange={e=>{setRecruitAreaFilter(e.target.value);setRecruitBranchFilter('')}} className="shrink-0 w-32 sm:w-40 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-sm cursor-pointer truncate"><option value="">ทุก Area</option>{appAreas.map(a=><option key={a}>{a}</option>)}</select>
                           <select value={recruitBranchFilter} onChange={e=>setRecruitBranchFilter(e.target.value)} disabled={!recruitAreaFilter} className="shrink-0 w-36 sm:w-48 border border-slate-200 rounded-xl px-3 py-2 text-sm font-semibold outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-sm disabled:opacity-50 cursor-pointer truncate"><option value="">ทุกสาขา</option>{branchesForRecruitFilter.map(b=><option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}</select>
@@ -916,16 +952,16 @@
                                   <td className={`p-5 font-extrabold ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>{v.position}</td>
                                   <td className="p-5 text-center"><span className="inline-flex items-center justify-center w-8 h-8 rounded-xl font-bold bg-slate-100 text-slate-600 shadow-inner">{applicantCount}</span></td>
                                   <td className="p-5"><VacancyBadge status={computedStatus} /></td>
-                                  <td className="p-5 text-right">{isActive ? (<button onClick={()=>setAddingApplicantFor(v)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:-translate-y-0.5 transition-all flex items-center ml-auto"><Icons.UserPlus size={16} className="mr-2"/>เพิ่มประวัติ</button>) : (<span className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center w-fit ml-auto opacity-80 cursor-not-allowed"><Icons.Check size={16} className="mr-2"/>ปิดรับแล้ว</span>)}</td>
+                                  <td className="p-5 text-right">{isActive ? (<button onClick={()=>setAddingApplicantFor(v)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:-translate-y-0.5 transition-all flex items-center ml-auto"><Icon name="person-plus-fill" size={16} className="mr-2"/>เพิ่มประวัติ</button>) : (<span className="bg-slate-200 text-slate-500 px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center w-fit ml-auto opacity-80 cursor-not-allowed"><Icon name="check-lg" size={16} className="mr-2"/>ปิดรับแล้ว</span>)}</td>
                                 </tr>
                               );
-                            }) : <tr><td colSpan="5" className="p-16 text-center text-slate-400"><Icons.Target size={48} className="mx-auto mb-4 text-slate-200"/><p className="font-bold text-lg text-slate-500">ไม่มีตำแหน่งงานที่ต้องรับผิดชอบ</p></td></tr>}
+                            }) : <tr><td colSpan="5" className="p-16 text-center text-slate-400"><Icon name="bullseye" size={48} className="mx-auto mb-4 text-slate-200"/><p className="font-bold text-lg text-slate-500">ไม่มีตำแหน่งงานที่ต้องรับผิดชอบ</p></td></tr>}
                           </tbody>
                         </table>
                       </div>
                     </div>
                     <div className="bg-white rounded-3xl shadow-sm hover:shadow-md transition-shadow border border-slate-200 mt-8 overflow-hidden">
-                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center space-x-3"><div className="bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 p-2.5 rounded-xl shadow-inner"><Icons.Users size={20}/></div><h3 className="font-extrabold text-lg text-slate-800">ประวัติผู้สมัครที่ดูแล</h3></div><button onClick={()=>exportToExcel(myApplicants, 'MyApplicants_Export')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all shadow-sm"><Icons.Download size={16} className="mr-2"/> Export Excel</button></div>
+                      <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50"><div className="flex items-center space-x-3"><div className="bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-700 p-2.5 rounded-xl shadow-inner"><Icon name="people-fill" size={20}/></div><h3 className="font-extrabold text-lg text-slate-800">ประวัติผู้สมัครที่ดูแล</h3></div><button onClick={()=>exportToExcel(myApplicants, 'MyApplicants_Export')} className="text-sm bg-white text-slate-600 px-4 py-2 rounded-xl border border-slate-200 font-bold flex items-center hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all shadow-sm"><Icon name="download" size={16} className="mr-2"/> Export Excel</button></div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm text-left">
                           <tbody className="divide-y divide-slate-100">
@@ -937,35 +973,35 @@
                                   <td className="p-4 space-y-2 w-1/4 align-top">
                                     <input value={editAppForm.name} onChange={e=>setEditAppForm({...editAppForm, name:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2.5 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" disabled={isSaving} placeholder="ชื่อ-นามสกุล"/>
                                     <input value={editAppForm.phone} onChange={e=>setEditAppForm({...editAppForm, phone:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2.5 rounded-xl text-sm font-semibold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" disabled={isSaving} placeholder="เบอร์โทรศัพท์"/>
-                                    <div className={`mt-2 border-2 border-dashed border-slate-300 p-2 rounded-xl bg-white flex items-center transition-all hover:border-blue-400 ${isSaving ? 'opacity-50' : ''}`}><Icons.Upload size={14} className="text-blue-500 shrink-0 mx-2"/><input type="file" onChange={handleEditFileUpload} disabled={isSaving} className="text-[10px] w-full text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer outline-none"/></div>
-                                    {editAppForm.resumeName && <div className="text-[10px] font-bold text-emerald-600 flex items-center truncate mt-1"><Icons.CheckCircle2 size={10} className="mr-1"/> ไฟล์: {editAppForm.resumeName}</div>}
+                                    <div className={`mt-2 border-2 border-dashed border-slate-300 p-2 rounded-xl bg-white flex items-center transition-all hover:border-blue-400 ${isSaving ? 'opacity-50' : ''}`}><Icon name="upload" size={14} className="text-blue-500 shrink-0 mx-2"/><input type="file" onChange={handleEditFileUpload} disabled={isSaving} className="text-[10px] w-full text-slate-600 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer outline-none"/></div>
+                                    {editAppForm.resumeName && <div className="text-[10px] font-bold text-emerald-600 flex items-center truncate mt-1"><Icon name="check-circle-fill" size={10} className="mr-1"/> ไฟล์: {editAppForm.resumeName}</div>}
                                   </td>
                                   <td className="p-4 space-y-2 min-w-[220px] w-1/4 align-top">
                                     <select value={editAppForm.status} onChange={e=>setEditAppForm({...editAppForm, status:e.target.value})} className="w-full border border-slate-300 shadow-sm p-2.5 rounded-xl text-sm font-bold outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" disabled={isSaving}>{appStatuses.map(s=><option key={s}>{s}</option>)}</select>
                                     {editAppForm.status==='รอเริ่มงาน' && <input type="date" value={editAppForm.startDate||''} onChange={e=>setEditAppForm({...editAppForm, startDate:e.target.value})} className="w-full border border-sky-300 bg-sky-50 text-sky-700 shadow-sm p-2.5 rounded-xl text-sm font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20" title="วันที่เริ่มงาน" disabled={isSaving}/>}
                                     {['อื่นๆ', 'ติดต่อผู้สมัครไม่ได้', 'ยกเลิกสัมภาษณ์/ไม่มาตามนัด', 'ไม่ผ่านสัมภาษณ์', 'ไม่มีตำแหน่งงานว่าง'].includes(editAppForm.status) && <input placeholder="ระบุเหตุผลที่ปฏิเสธ..." value={editAppForm.comment||''} onChange={e=>setEditAppForm({...editAppForm, comment:e.target.value})} className="w-full border border-orange-300 bg-orange-50 text-orange-700 shadow-sm p-2.5 rounded-xl text-sm font-bold outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20" disabled={isSaving}/>}
                                   </td>
-                                  <td className="p-4 text-right align-top w-1/4"><div className="flex flex-col space-y-2 items-end"><button onClick={saveEditApp} disabled={isSaving} className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex justify-center items-center whitespace-nowrap">{isSaving ? <><Icons.Loader2 size={16} className="animate-spin mr-2"/>กำลังบันทึก...</> : 'บันทึกข้อมูล'}</button><button onClick={()=>setEditAppId(null)} disabled={isSaving} className="w-full sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all whitespace-nowrap">ยกเลิก</button></div></td>
+                                  <td className="p-4 text-right align-top w-1/4"><div className="flex flex-col space-y-2 items-end"><button onClick={saveEditApp} disabled={isSaving} className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all flex justify-center items-center whitespace-nowrap">{isSaving ? <><Icon name="arrow-repeat" className="animate-spin mr-2" size={16}/>กำลังบันทึก...</> : 'บันทึกข้อมูล'}</button><button onClick={()=>setEditAppId(null)} disabled={isSaving} className="w-full sm:w-auto bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all whitespace-nowrap">ยกเลิก</button></div></td>
                                 </tr>
                               )
                               return (
                                 <tr key={app.id} className="hover:bg-slate-50 transition-colors group">
-                                  <td className="p-5 w-1/4"><div className="font-bold text-slate-800">{app.branchName}</div><div className="text-xs font-semibold text-slate-500 mt-1 flex items-center"><Icons.Briefcase size={12} className="mr-1.5 text-slate-400"/>{app.position}</div></td>
+                                  <td className="p-5 w-1/4"><div className="font-bold text-slate-800">{app.branchName}</div><div className="text-xs font-semibold text-slate-500 mt-1 flex items-center"><Icon name="briefcase-fill" size={12} className="mr-1.5 text-slate-400"/>{app.position}</div></td>
                                   <td className="p-5 cursor-pointer group/name w-1/4" onClick={()=>startEditApp(app)}>
-                                    <div className="font-extrabold text-base text-slate-800 group-hover/name:text-blue-600 flex items-center">{app.name} <Icons.Edit size={14} className="ml-2 opacity-0 group-hover/name:opacity-100 transition-opacity text-blue-500"/></div>
-                                    <div className="text-sm font-medium text-slate-500 mt-1 flex items-center"><Icons.Phone size={12} className="mr-1.5 text-slate-400"/>{app.phone}</div>
+                                    <div className="font-extrabold text-base text-slate-800 group-hover/name:text-blue-600 flex items-center">{app.name} <Icon name="pencil-square" size={14} className="ml-2 opacity-0 group-hover/name:opacity-100 transition-opacity text-blue-500"/></div>
+                                    <div className="text-sm font-medium text-slate-500 mt-1 flex items-center"><Icon name="telephone-fill" size={12} className="mr-1.5 text-slate-400"/>{app.phone}</div>
                                     <div className="flex flex-wrap items-center gap-2 mt-2.5" onClick={(e) => e.stopPropagation()}>
-                                      {app.resumeBase64 && app.resumeBase64 !== 'Uploaded' && !String(app.resumeBase64).startsWith('Error') && (<button onClick={(e) => handleViewResume(e, app.resumeBase64, app.resumeName)} className="text-[11px] font-bold text-blue-700 hover:text-white flex items-center bg-blue-50 hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-all border border-blue-200 shadow-sm"><Icons.Eye size={14} className="mr-1.5" /> ดูเรซูเม่</button>)}
-                                      {app.resumeBase64 === 'Uploaded' && (<span className="text-[11px] font-bold text-slate-500 flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200"><Icons.CheckCircle2 size={14} className="mr-1.5 text-emerald-500" /> แนบไฟล์แล้ว</span>)}
-                                      {app.resumeBase64 && String(app.resumeBase64).startsWith('Error') && (<span className="text-[11px] font-bold text-red-600 flex items-center bg-red-50 px-3 py-1.5 rounded-lg border border-red-200" title={app.resumeBase64}><Icons.AlertCircle size={14} className="mr-1.5" /> ล้มเหลว</span>)}
+                                      {app.resumeBase64 && app.resumeBase64 !== 'Uploaded' && !String(app.resumeBase64).startsWith('Error') && (<button onClick={(e) => handleViewResume(e, app.resumeBase64, app.resumeName)} className="text-[11px] font-bold text-blue-700 hover:text-white flex items-center bg-blue-50 hover:bg-blue-600 px-3 py-1.5 rounded-lg transition-all border border-blue-200 shadow-sm"><Icon name="eye-fill" size={14} className="mr-1.5" /> ดูเรซูเม่</button>)}
+                                      {app.resumeBase64 === 'Uploaded' && (<span className="text-[11px] font-bold text-slate-500 flex items-center bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200"><Icon name="check-circle-fill" size={14} className="mr-1.5 text-emerald-500" /> แนบไฟล์แล้ว</span>)}
+                                      {app.resumeBase64 && String(app.resumeBase64).startsWith('Error') && (<span className="text-[11px] font-bold text-red-600 flex items-center bg-red-50 px-3 py-1.5 rounded-lg border border-red-200" title={app.resumeBase64}><Icon name="exclamation-circle-fill" size={14} className="mr-1.5" /> ล้มเหลว</span>)}
                                     </div>
                                   </td>
                                   <td className="p-5 w-1/4">
                                     <select value={app.status} onChange={e=>handleInlineStatusChange(app, e.target.value)} className="status-select font-extrabold text-xs px-4 py-2 rounded-xl outline-none border transition-all cursor-pointer w-full shadow-sm hover:shadow-md" style={{color:STATUS_COLORS[app.status]||'#64748b', borderColor:STATUS_COLORS[app.status]||'#cbd5e1', backgroundColor: (STATUS_COLORS[app.status]||'#cbd5e1')+'10'}}>{appStatuses.map(s=><option key={s}>{s}</option>)}</select>
-                                    {app.status==='รอเริ่มงาน' && app.startDate && <div className="text-xs text-sky-700 mt-2 font-bold flex items-center bg-sky-50 p-1.5 rounded-lg border border-sky-100"><Icons.Clock size={12} className="mr-1.5"/>เริ่มงาน: {new Date(app.startDate).toLocaleDateString('th')}</div>}
+                                    {app.status==='รอเริ่มงาน' && app.startDate && <div className="text-xs text-sky-700 mt-2 font-bold flex items-center bg-sky-50 p-1.5 rounded-lg border border-sky-100"><Icon name="clock-fill" size={12} className="mr-1.5"/>เริ่มงาน: {new Date(app.startDate).toLocaleDateString('th')}</div>}
                                     {app.comment && <div className="text-[11px] text-slate-500 mt-2 font-medium bg-slate-100 p-2 rounded-lg border border-slate-200 border-l-2 border-l-orange-400">"{app.comment}"</div>}
                                   </td>
-                                  <td className="p-5 text-right space-x-1 w-1/4 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>startEditApp(app)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Icons.Edit size={18}/></button><button onClick={()=>deleteApplicant(app.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Icons.Trash2 size={18}/></button></td>
+                                  <td className="p-5 text-right space-x-1 w-1/4 opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={()=>startEditApp(app)} className="p-2.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Icon name="pencil-square" size={18}/></button><button onClick={()=>deleteApplicant(app.id)} className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"><Icon name="trash-fill" size={18}/></button></td>
                                 </tr>
                               )
                             })}
@@ -977,7 +1013,7 @@
                   );
                 })()}
 
-                {/* 🟢 อัปเดตดีไซน์ Modal เพิ่มผู้สมัครใหม่ให้สวยและสอดคล้องกับหน้า Main (2 คอลัมน์) */}
+                {/* Modal เพิ่มผู้สมัครใหม่ */}
                 {addingApplicantFor && (
                   <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
@@ -987,7 +1023,7 @@
                           <h3 className="font-extrabold text-xl">เพิ่มข้อมูลผู้สมัครใหม่ (Pro Edition)</h3>
                           <p className="text-blue-100 text-sm mt-0.5 font-medium">{addingApplicantFor.position} • {addingApplicantFor.branchName}</p>
                         </div>
-                        <button onClick={()=>setAddingApplicantFor(null)} disabled={isSaving} className="relative z-10 hover:bg-white/20 p-2 rounded-full transition-colors disabled:opacity-50"><Icons.X size={24}/></button>
+                        <button onClick={()=>setAddingApplicantFor(null)} disabled={isSaving} className="relative z-10 hover:bg-white/20 p-2 rounded-full transition-colors disabled:opacity-50"><Icon name="x-lg" size={24}/></button>
                       </div>
                       
                       <form onSubmit={handleRecruitSubmit} className="p-6 sm:p-8 bg-slate-50/30">
@@ -1026,7 +1062,7 @@
 
                         {formData.status === 'รอเริ่มงาน' && (
                           <div className="space-y-1.5 mb-5 animate-in slide-in-from-top-2">
-                            <label className="text-xs font-bold text-sky-600 ml-1 flex items-center"><Icons.Clock size={12} className="mr-1"/> ระบุวันที่เริ่มงาน *</label>
+                            <label className="text-xs font-bold text-sky-600 ml-1 flex items-center"><Icon name="clock-fill" size={12} className="mr-1"/> ระบุวันที่เริ่มงาน *</label>
                             <input required type="date" name="startDate" value={formData.startDate||''} onChange={handleInputChange} disabled={isSaving} className="w-full border border-sky-300 bg-sky-50 text-sky-800 rounded-xl px-4 py-2.5 text-sm font-bold outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition-all shadow-sm"/>
                           </div>
                         )}
@@ -1040,19 +1076,19 @@
                         <div className={`space-y-1.5 pt-4 border-t border-slate-100 ${isSaving ? 'opacity-50' : ''}`}>
                           <label className="text-xs font-bold text-slate-500 ml-1">แนบไฟล์เอกสาร (PDF หรือ รูปภาพ ไม่เกิน 3MB)</label>
                           <div className="flex items-center space-x-3 border-2 border-dashed border-slate-300 p-2.5 rounded-xl bg-white hover:border-blue-400 hover:bg-blue-50/50 transition-all group cursor-pointer relative overflow-hidden">
-                            <div className="bg-slate-100 group-hover:bg-blue-100 p-2.5 rounded-lg text-slate-500 group-hover:text-blue-600 transition-colors ml-1"><Icons.Upload size={18}/></div>
+                            <div className="bg-slate-100 group-hover:bg-blue-100 p-2.5 rounded-lg text-slate-500 group-hover:text-blue-600 transition-colors ml-1"><Icon name="upload" size={18}/></div>
                             <input type="file" onChange={handleFileUpload} disabled={isSaving} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"/>
                             <div className="flex-1 truncate">
                               <p className="text-sm font-bold text-slate-700 truncate">{formData.resumeName || 'คลิกเพื่อเลือกไฟล์แนบ'}</p>
                             </div>
-                            {formData.resumeName && <Icons.CheckCircle2 size={20} className="text-emerald-500 mr-3"/>}
+                            {formData.resumeName && <Icon name="check-circle-fill" size={20} className="text-emerald-500 mr-3"/>}
                           </div>
                         </div>
                         
                         <div className="pt-8 flex justify-end gap-3">
                           <button type="button" onClick={()=>setAddingApplicantFor(null)} disabled={isSaving} className="px-6 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-50">ยกเลิก</button>
                           <button type="submit" disabled={isSaving} className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold px-8 py-2.5 rounded-xl shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center disabled:opacity-70 disabled:cursor-not-allowed">
-                            {isSaving ? <><Icons.Loader2 size={18} className="animate-spin mr-2"/>กำลังบันทึก...</> : <><Icons.Check size={18} className="mr-2"/>บันทึกข้อมูล</>}
+                            {isSaving ? <><Icon name="arrow-repeat" className="animate-spin mr-2" size={18}/>กำลังบันทึก...</> : <><Icon name="check-lg" size={18} className="mr-2"/>บันทึกข้อมูล</>}
                           </button>
                         </div>
                       </form>
@@ -1070,7 +1106,7 @@
                   
                   <div className="relative z-10 w-full xl:w-auto">
                     <h2 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-200">Executive Dashboard</h2>
-                    <p className="text-slate-400 text-xs sm:text-sm mt-1 font-medium flex items-center"><Icons.BarChart3 size={14} className="mr-1.5"/> สรุปภาพรวมและติดตามสถานะการสรรหา</p>
+                    <p className="text-slate-400 text-xs sm:text-sm mt-1 font-medium flex items-center"><Icon name="bar-chart-fill" size={14} className="mr-1.5"/> สรุปภาพรวมและติดตามสถานะการสรรหา</p>
                   </div>
                   
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center w-full xl:w-auto gap-2.5 relative z-10 hide-on-pdf">
@@ -1080,17 +1116,17 @@
                           {appTAs.map(t=><option key={t} value={t}>{t}</option>)}
                         </select>
                         <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500">
-                          <Icons.ChevronDown size={16} />
+                          <Icon name="chevron-down" size={16} />
                         </div>
                     </div>
 
                     <div className="flex flex-wrap sm:flex-nowrap w-full sm:w-auto gap-2 shrink-0">
                       <button onClick={sendLineSummary} disabled={isSendingLine} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-[#00B900] hover:bg-[#009900] text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-[#00B900]/30 transition-all hover:-translate-y-0.5 disabled:opacity-70 whitespace-nowrap">
-                        {isSendingLine ? <Icons.Loader2 size={16} className="animate-spin"/> : <Icons.ImageIcon size={16}/>}
+                        {isSendingLine ? <Icon name="arrow-repeat" className="animate-spin" size={16}/> : <Icon name="image" size={16}/>}
                         <span>ส่งเข้า LINE</span>
                       </button>
                       <button onClick={exportDashboardToPDF} className="flex-1 sm:flex-none flex items-center justify-center space-x-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-purple-500/30 transition-all hover:-translate-y-0.5 whitespace-nowrap">
-                        <Icons.Printer size={16}/>
+                        <Icon name="printer-fill" size={16}/>
                         <span>Export PDF</span>
                       </button>
                     </div>
@@ -1099,11 +1135,11 @@
 
                 <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col gap-4 hide-on-pdf relative z-20">
                    <div className="flex items-center text-slate-800 font-extrabold text-sm shrink-0">
-                     <Icons.Filter size={18} className="mr-2 text-blue-600"/> ตัวกรองข้อมูล (Global Filter)
+                     <Icon name="funnel-fill" size={18} className="mr-2 text-blue-600"/> ตัวกรองข้อมูล (Global Filter)
                    </div>
                    
                    <div className="flex flex-col gap-1.5 w-full overflow-hidden">
-                       <div className="text-[10px] font-bold text-slate-500 flex items-center"><Icons.MapIcon size={12} className="mr-1"/> เลือก Area (เลือกได้มากกว่า 1)</div>
+                       <div className="text-[10px] font-bold text-slate-500 flex items-center"><Icon name="map-fill" size={12} className="mr-1"/> เลือก Area (เลือกได้มากกว่า 1)</div>
                        <div className="flex flex-wrap items-center gap-2.5 pb-1.5 pt-0.5">
                          <button 
                            onClick={handleClearAllAreas}
@@ -1127,7 +1163,7 @@
 
                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto relative">
                       <div className="shrink-0 sm:w-64">
-                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icons.Building2 size={12} className="mr-1"/> สาขา</label>
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icon name="building" size={12} className="mr-1"/> สาขา</label>
                         <select value={dashboardBranchFilter} onChange={(e) => {setDashboardBranchFilter(e.target.value); setDashboardPositionFilter('');}} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-500 appearance-none cursor-pointer">
                           <option value="">ทุกสาขา (All Stores)</option>
                           {dashboardBranchesForFilter.map(b => <option key={b.code} value={b.code}>{b.code} - {b.name}</option>)}
@@ -1135,7 +1171,7 @@
                       </div>
 
                       <div className="shrink-0 sm:w-64">
-                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icons.Briefcase size={12} className="mr-1"/> ตำแหน่งงาน</label>
+                        <label className="text-[10px] font-bold text-slate-500 mb-1 flex items-center"><Icon name="briefcase-fill" size={12} className="mr-1"/> ตำแหน่งงาน</label>
                         <select value={dashboardPositionFilter} onChange={(e) => setDashboardPositionFilter(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-colors shadow-sm outline-none focus:border-blue-500 appearance-none cursor-pointer truncate">
                           <option value="">ทุกตำแหน่งงาน (All Positions)</option>
                           {dashboardPositionsForFilter.map(pos => <option key={pos} value={pos}>{pos}</option>)}
@@ -1147,31 +1183,31 @@
                 <div id="dashboard-export-area" className="space-y-6 bg-transparent p-1 relative z-10">
                   
                   <div>
-                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icons.Briefcase className="mr-2 text-blue-600" size={16}/> สรุปสถานะตำแหน่งงาน <span className="text-[10px] font-medium text-slate-400 ml-2">(Vacancy Overview)</span></h3>
+                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icon name="briefcase-fill" className="mr-2 text-blue-600" size={16}/> สรุปสถานะตำแหน่งงาน <span className="text-[10px] font-medium text-slate-400 ml-2">(Vacancy Overview)</span></h3>
                     <div className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-2 hide-scrollbar">
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-blue-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('เปิดรับทั้งหมด (Active)', 'vacancy', 'all')}>
-                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center"><Icons.Target size={14} className="mr-1.5 text-blue-400"/>เปิดรับทั้งหมด</div>
+                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center"><Icon name="bullseye" size={14} className="mr-1.5 text-blue-400"/>เปิดรับทั้งหมด</div>
                          <div className="text-2xl sm:text-3xl font-black text-slate-800">{vacancyStats.total}</div>
                        </div>
                        
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('ว่าง (Vacant)', 'vacancy', 'vacant')}>
-                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center"><Icons.AlertCircle size={14} className="mr-1.5"/>ว่าง (Vacant)</div>
+                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center"><Icon name="exclamation-circle-fill" size={14} className="mr-1.5"/>ว่าง (Vacant)</div>
                          <div className="text-2xl sm:text-3xl font-black text-amber-600">{vacancyStats.vacant}</div>
                        </div>
                        
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-purple-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('Promote & Transfer', 'vacancy', 'promote')}>
-                         <div className="text-[10px] sm:text-xs text-purple-600 font-bold mb-1.5 flex items-center"><Icons.Users size={14} className="mr-1.5"/>Promote/Transfer</div>
+                         <div className="text-[10px] sm:text-xs text-purple-600 font-bold mb-1.5 flex items-center"><Icon name="people-fill" size={14} className="mr-1.5"/>Promote/Transfer</div>
                          <div className="text-2xl sm:text-3xl font-black text-purple-600">{vacancyStats.promote}</div>
                        </div>
                        
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-slate-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('Hold / ระงับชั่วคราว', 'vacancy', 'hold')}>
-                         <div className="text-[10px] sm:text-xs text-slate-600 font-bold mb-1.5 flex items-center"><Icons.Clock size={14} className="mr-1.5"/>Hold / อื่นๆ</div>
+                         <div className="text-[10px] sm:text-xs text-slate-600 font-bold mb-1.5 flex items-center"><Icon name="clock-fill" size={14} className="mr-1.5"/>Hold / อื่นๆ</div>
                          <div className="text-2xl sm:text-3xl font-black text-slate-600">{vacancyStats.hold}</div>
                        </div>
 
                        <div className="min-w-[160px] flex-1 bg-gradient-to-br from-emerald-500 to-teal-600 p-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all cursor-pointer text-white relative overflow-hidden flex flex-col justify-center" onClick={() => handleShowDashboardDetail('Progress (ได้คนแล้ว)', 'vacancy', 'fulfilled')}>
                          <div className="flex justify-between items-end mb-1 relative z-10">
-                           <div className="text-[10px] sm:text-xs text-emerald-50 font-bold flex items-center"><Icons.CheckCircle2 size={14} className="mr-1.5"/>Progress (ปิดงาน)</div>
+                           <div className="text-[10px] sm:text-xs text-emerald-50 font-bold flex items-center"><Icon name="check-circle-fill" size={14} className="mr-1.5"/>Progress (ปิดงาน)</div>
                            <div className="text-[9px] sm:text-[10px] text-emerald-100 font-bold bg-black/10 px-1.5 py-0.5 rounded-md">{vacancyStats.fulfilled}/{vacancyStats.total}</div>
                          </div>
                          <div className="text-2xl sm:text-3xl font-black text-white relative z-10 mt-0.5">{vacancyStats.progress}%</div>
@@ -1183,22 +1219,22 @@
                   </div>
 
                   <div>
-                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icons.UserPlus className="mr-2 text-indigo-600" size={16}/> สรุปสถานะผู้สมัคร <span className="text-[10px] font-medium text-slate-400 ml-2">(Applicant Overview)</span></h3>
+                    <h3 className="text-sm font-extrabold mb-3 text-slate-800 flex items-center pl-1"><Icon name="person-plus-fill" className="mr-2 text-indigo-600" size={16}/> สรุปสถานะผู้สมัคร <span className="text-[10px] font-medium text-slate-400 ml-2">(Applicant Overview)</span></h3>
                     <div className="flex flex-row flex-nowrap overflow-x-auto gap-3 pb-2 hide-scrollbar">
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('รวมผู้สมัคร', 'applicant', 'all')}>
-                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.Users size={14} className="text-indigo-400"/><span>ผู้สมัครทั้งหมด</span></div>
+                         <div className="text-[10px] sm:text-xs text-slate-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="people-fill" size={14} className="text-indigo-400"/><span>ผู้สมัครทั้งหมด</span></div>
                          <div className="text-2xl sm:text-3xl font-black text-slate-800">{applicantStats.total}</div>
                        </div>
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-emerald-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('สำเร็จ (Hired)', 'applicant', 'hired')}>
-                         <div className="text-[10px] sm:text-xs text-emerald-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.CheckCircle2 size={14}/><span>สำเร็จ (Hired)</span></div>
+                         <div className="text-[10px] sm:text-xs text-emerald-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="check-circle-fill" size={14}/><span>สำเร็จ (Hired)</span></div>
                          <div className="text-2xl sm:text-3xl font-black text-emerald-600">{applicantStats.hired}</div>
                        </div>
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-amber-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('รอดำเนินการ', 'applicant', 'pending')}>
-                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.Clock size={14}/><span>รอดำเนินการ</span></div>
+                         <div className="text-[10px] sm:text-xs text-amber-600 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="clock-fill" size={14}/><span>รอดำเนินการ</span></div>
                          <div className="text-2xl sm:text-3xl font-black text-amber-600">{applicantStats.pending}</div>
                        </div>
                        <div className="min-w-[130px] flex-1 bg-white p-3.5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer hover:border-red-400 group relative overflow-hidden" onClick={() => handleShowDashboardDetail('ไม่ผ่าน/ปฏิเสธ', 'applicant', 'rejected')}>
-                         <div className="text-[10px] sm:text-xs text-red-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icons.X size={14}/><span>ไม่ผ่าน/ปฏิเสธ</span></div>
+                         <div className="text-[10px] sm:text-xs text-red-500 font-bold mb-1.5 flex items-center space-x-1.5"><Icon name="x-lg" size={14}/><span>ไม่ผ่าน/ปฏิเสธ</span></div>
                          <div className="text-2xl sm:text-3xl font-black text-red-500">{applicantStats.rejected}</div>
                        </div>
                     </div>
@@ -1207,7 +1243,7 @@
                   <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50/50">
                       <h3 className="font-extrabold text-sm flex items-center text-slate-800">
-                        <Icons.Building2 className="mr-2 text-indigo-600" size={16}/> 
+                        <Icon name="building" className="mr-2 text-indigo-600" size={16}/> 
                         ข้อมูลสถานะและการดำเนินงานแบบเจาะลึก
                       </h3>
                     </div>
@@ -1235,8 +1271,8 @@
                                 <tr className="bg-indigo-50/40 border-y border-indigo-100/50 cursor-pointer hover:bg-indigo-100/50 transition-colors" onClick={() => toggleDashboardAreaRow(area.area)} title="คลิกเพื่อดู/ซ่อน สาขา">
                                   <td className="px-4 py-2.5 align-middle">
                                     <div className="flex items-center">
-                                      {expandedAreas[area.area] ? <Icons.ChevronDown size={16} className="mr-1 text-indigo-500"/> : <Icons.ChevronRight size={16} className="mr-1 text-indigo-400"/>}
-                                      <Icons.MapIcon size={14} className="mr-1.5 text-indigo-500"/>
+                                      {expandedAreas[area.area] ? <Icon name="chevron-down" size={16} className="mr-1 text-indigo-500"/> : <Icon name="chevron-right" size={16} className="mr-1 text-indigo-400"/>}
+                                      <Icon name="map-fill" size={14} className="mr-1.5 text-indigo-500"/>
                                       <span className="font-black text-indigo-800 text-xs">{area.area}</span>
                                       <span className="ml-2 text-[9px] bg-white border border-indigo-100 px-1.5 py-0.5 rounded text-indigo-600 font-bold shadow-sm">รวม {area.totalVacancies} ตำแหน่ง</span>
                                     </div>
@@ -1286,8 +1322,8 @@
                                     <tr className="bg-slate-50/50 border-b border-slate-50 cursor-pointer hover:bg-blue-50/30 transition-colors animate-in slide-in-from-top-1 duration-200" onClick={() => toggleBranch(branch.branchCode)} title="คลิกเพื่อดู/ซ่อน ตำแหน่งงาน">
                                       <td className="px-4 py-2 pl-8 align-middle">
                                         <div className="flex items-center">
-                                          {expandedBranches[branch.branchCode] ? <Icons.ChevronDown size={14} className="mr-1 text-blue-500"/> : <Icons.ChevronRight size={14} className="mr-1 text-slate-400"/>}
-                                          <Icons.Building2 size={12} className="mr-1.5 text-slate-400"/>
+                                          {expandedBranches[branch.branchCode] ? <Icon name="chevron-down" size={14} className="mr-1 text-blue-500"/> : <Icon name="chevron-right" size={14} className="mr-1 text-slate-400"/>}
+                                          <Icon name="building" size={12} className="mr-1.5 text-slate-400"/>
                                           <span className="font-bold text-slate-700 text-[11px]">{branch.branchCode} - {branch.branchName}</span>
                                         </div>
                                       </td>
@@ -1337,7 +1373,7 @@
                                       <tr key={vac.id} className="hover:bg-blue-50/20 transition-colors group bg-white animate-in slide-in-from-top-1 duration-200">
                                         <td className="px-4 py-2 align-middle pl-14">
                                           <div className="font-bold text-slate-600 flex items-center text-[10px]">
-                                            <Icons.Briefcase size={10} className="mr-1.5 text-slate-300 group-hover:text-blue-400 transition-colors"/>
+                                            <Icon name="briefcase-fill" size={10} className="mr-1.5 text-slate-300 group-hover:text-blue-400 transition-colors"/>
                                             {vac.position}
                                           </div>
                                         </td>
@@ -1351,7 +1387,7 @@
                                         <td className="px-4 py-2 align-middle">
                                           <div className="w-[110px] shrink-0">
                                             <button onClick={() => handleShowDashboardDetail(`รายชื่อผู้สมัครสาขา: ${vac.branchName}`, 'applicant', 'all', vac.branchCode)} className="flex items-center justify-between w-full bg-slate-50 hover:bg-blue-50 px-2 py-1.5 rounded-lg border border-slate-100 transition-colors group/btn">
-                                               <span className="text-[9px] font-bold text-slate-500 flex items-center group-hover/btn:text-blue-600"><Icons.Users size={10} className="mr-1"/> รวม {vac.insight.applicantCount} คน</span>
+                                               <span className="text-[9px] font-bold text-slate-500 flex items-center group-hover/btn:text-blue-600"><Icon name="people-fill" size={10} className="mr-1"/> รวม {vac.insight.applicantCount} คน</span>
                                                <span className="text-[8px] text-blue-500 font-bold ml-1 bg-white border border-blue-100 px-1.5 py-0.5 rounded shadow-sm">ดูทั้งหมด</span>
                                             </button>
                                           </div>
@@ -1371,7 +1407,7 @@
                                 ))}
                               </React.Fragment>
                             );
-                          }) : <tr><td colSpan="4" className="p-8 text-center text-slate-400"><Icons.SearchIcon size={28} className="mx-auto mb-2 text-slate-200"/><p className="font-bold text-xs text-slate-500">ไม่มีข้อมูลในเงื่อนไขที่เลือก</p></td></tr>}
+                          }) : <tr><td colSpan="4" className="p-8 text-center text-slate-400"><Icon name="search" size={28} className="mx-auto mb-2 text-slate-200"/><p className="font-bold text-xs text-slate-500">ไม่มีข้อมูลในเงื่อนไขที่เลือก</p></td></tr>}
                         </tbody>
                       </table>
                     </div>
@@ -1386,9 +1422,9 @@
                   <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-start shadow-sm relative z-10">
                     <div>
                       <h3 className="font-extrabold text-lg text-slate-800 mb-0.5">{viewApplicants.position}</h3>
-                      <p className="text-xs font-bold text-indigo-600 flex items-center"><Icons.MapPin size={12} className="mr-1"/> {viewApplicants.branchName}</p>
+                      <p className="text-xs font-bold text-indigo-600 flex items-center"><Icon name="geo-alt-fill" size={12} className="mr-1"/> {viewApplicants.branchName}</p>
                     </div>
-                    <button onClick={()=>setViewApplicants(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-2 rounded-full transition-colors shadow-sm"><Icons.X size={16}/></button>
+                    <button onClick={()=>setViewApplicants(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-2 rounded-full transition-colors shadow-sm"><Icon name="x-lg" size={16}/></button>
                   </div>
                   
                   <div className="p-3 sm:p-4 space-y-2 overflow-y-auto hide-scrollbar bg-slate-50/50 flex-1">
@@ -1397,20 +1433,20 @@
                         <div className="text-xs z-10">
                           <p className="font-extrabold text-sm text-slate-800 mb-0.5">{a.name}</p>
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="text-slate-500 font-medium flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 text-[10px]"><Icons.Phone size={10} className="mr-1"/>{a.phone}</p>
+                            <p className="text-slate-500 font-medium flex items-center bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 text-[10px]"><Icon name="telephone-fill" size={10} className="mr-1"/>{a.phone}</p>
                             {a.resumeBase64 && a.resumeBase64 !== 'Uploaded' && !String(a.resumeBase64).startsWith('Error') && (
-                              <button onClick={(e) => handleViewResume(e, a.resumeBase64, a.resumeName)} className="text-[10px] font-bold text-blue-700 hover:text-white flex items-center bg-blue-50 hover:bg-blue-600 px-2 py-0.5 rounded-lg transition-all border border-blue-200 shadow-sm">
-                                <Icons.Eye size={10} className="mr-1" /> ดูเรซูเม่
+                              <button onClick={(e) => handleViewResume(e, a.resumeBase64, a.resumeName)} className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                                <Icon name="eye-fill" size={10} className="mr-1" /> ดูเรซูเม่
                               </button>
                             )}
                             {a.resumeBase64 === 'Uploaded' && (
-                               <span className="text-[10px] font-bold text-slate-500 flex items-center bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
-                                 <Icons.Paperclip size={10} className="mr-1 text-emerald-500" /> แนบไฟล์แล้ว
+                               <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
+                                 <Icon name="paperclip" size={10} className="mr-1 text-emerald-500" /> แนบไฟล์แล้ว
                                </span>
                             )}
                             {a.resumeBase64 && String(a.resumeBase64).startsWith('Error') && (
                                <span className="text-[10px] font-bold text-red-600 flex items-center bg-red-50 px-2 py-0.5 rounded-lg border border-red-200" title={a.resumeBase64}>
-                                 <Icons.AlertCircle size={10} className="mr-1" /> ล้มเหลว
+                                 <Icon name="exclamation-circle-fill" size={10} className="mr-1" /> ล้มเหลว
                                </span>
                             )}
                           </div>
@@ -1419,7 +1455,7 @@
                           <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:STATUS_COLORS[a.status]+'15', color:STATUS_COLORS[a.status], borderColor:STATUS_COLORS[a.status]+'30'}}>
                             {a.status}
                           </span>
-                          <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md"><Icons.UserPlus size={8} className="mr-1"/> {a.ta}</p>
+                          <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md"><Icon name="person-plus-fill" size={8} className="mr-1"/> {a.ta}</p>
                         </div>
                       </div>
                     ))}
@@ -1434,17 +1470,17 @@
                   <div className="px-5 py-4 border-b bg-gradient-to-r from-slate-50 to-white flex justify-between items-center shadow-sm relative z-10">
                     <h3 className="font-extrabold text-lg text-slate-800 flex items-center">
                        <div className={`p-1.5 rounded-xl mr-2.5 ${dashboardDetailModal.type === 'vacancy' ? 'bg-blue-100 text-blue-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                         {dashboardDetailModal.type === 'vacancy' ? <Icons.Briefcase size={16}/> : <Icons.Users size={16}/>}
+                         {dashboardDetailModal.type === 'vacancy' ? <Icon name="briefcase-fill" size={16}/> : <Icon name="people-fill" size={16}/>}
                        </div>
                        {dashboardDetailModal.title}
                        <span className="ml-3 bg-slate-800 text-white px-2 py-0.5 rounded-md text-[10px] font-black shadow-md">{dashboardDetailModal.data.length} รายการ</span>
                     </h3>
-                    <button onClick={()=>setDashboardDetailModal(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-1.5 rounded-full transition-colors shadow-sm"><Icons.X size={16}/></button>
+                    <button onClick={()=>setDashboardDetailModal(null)} className="bg-white border border-slate-200 text-slate-400 hover:text-slate-800 hover:bg-slate-100 p-1.5 rounded-full transition-colors shadow-sm"><Icon name="x-lg" size={16}/></button>
                   </div>
                   <div className="overflow-y-auto p-3 sm:p-4 space-y-2 flex-1 bg-slate-50/50 hide-scrollbar">
                     {dashboardDetailModal.data.length === 0 ? (
                       <div className="text-center text-slate-400 py-10 flex flex-col items-center">
-                        <Icons.SearchIcon size={32} className="text-slate-200 mb-2"/>
+                        <Icon name="search" size={32} className="text-slate-200 mb-2"/>
                         <p className="font-bold text-xs">ไม่มีข้อมูลที่ตรงกับสถานะนี้</p>
                       </div>
                     ) : (
@@ -1456,19 +1492,19 @@
                                 <p className="font-extrabold text-sm text-slate-800 mb-0.5">{item.position}</p>
                                 <div className="text-slate-500 flex flex-col sm:flex-row font-medium gap-1.5 sm:items-center">
                                   <div className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100">
-                                    <Icons.MapPin size={10} className="mr-1 text-slate-400"/> <span className="font-bold text-[10px]">{item.branchName}</span> 
+                                    <Icon name="geo-alt-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold text-[10px]">{item.branchName}</span> 
                                     <span className="mx-1.5 text-slate-300">|</span> 
                                     <span className="text-blue-600 font-extrabold uppercase text-[9px]">{item.area}</span>
                                   </div>
                                   {['Hired', 'Waiting to Join'].includes(item.insight.computedStatus) && (
                                     <div className="text-[10px] text-slate-500 flex items-center bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100 font-bold">
-                                      <Icons.UserPlus size={10} className="mr-1"/>
+                                      <Icon name="person-plus-fill" size={10} className="mr-1"/>
                                       คนสมัคร: <span className="ml-1">{item.insight.matchedApplicants.find(a => ['ผ่านสัมภาษณ์', 'รอเริ่มงาน'].includes(a.status))?.name || 'ไม่ระบุ'}</span>
                                     </div>
                                   )}
                                   {item.insight.computedStatus === 'Promote&Transfer Done' && item.effectiveDate && (
                                     <div className="text-[10px] flex items-center bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-md border border-emerald-100 font-bold">
-                                      <Icons.Clock size={10} className="mr-1"/>
+                                      <Icon name="clock-fill" size={10} className="mr-1"/>
                                       มีผล: <span className="ml-1">{new Date(item.effectiveDate).toLocaleDateString('th')}</span>
                                     </div>
                                   )}
@@ -1485,23 +1521,23 @@
                               <div className="text-xs">
                                 <p className="font-extrabold text-sm text-slate-800 mb-0.5">{item.name}</p>
                                 <div className="text-slate-500 flex items-center flex-wrap gap-1.5 font-medium">
-                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icons.Briefcase size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.position}</span></span>
-                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icons.MapPin size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.branchName}</span></span>
-                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icons.Phone size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.phone}</span></span>
+                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icon name="briefcase-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.position}</span></span>
+                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icon name="geo-alt-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.branchName}</span></span>
+                                  <span className="flex items-center bg-slate-50 px-2 py-0.5 rounded-md border border-slate-100 text-[10px]"><Icon name="telephone-fill" size={10} className="mr-1 text-slate-400"/> <span className="font-bold">{item.phone}</span></span>
                                   
                                   {item.resumeBase64 && item.resumeBase64 !== 'Uploaded' && !String(item.resumeBase64).startsWith('Error') && (
                                     <button onClick={(e) => handleViewResume(e, item.resumeBase64, item.resumeName)} className="text-[9px] text-blue-700 hover:text-white font-bold flex items-center bg-blue-50 hover:bg-blue-600 px-2 py-0.5 rounded-md transition-all border border-blue-200 shadow-sm">
-                                      <Icons.Eye size={10} className="mr-1" /> ดูเรซูเม่
+                                      <Icon name="eye-fill" size={10} className="mr-1" /> ดูเรซูเม่
                                     </button>
                                   )}
                                   {item.resumeBase64 === 'Uploaded' && (
                                     <span className="text-[9px] text-slate-500 font-bold flex items-center bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200" title="ไฟล์ถูกบันทึกบน Cloud แล้ว">
-                                      <Icons.CheckCircle2 size={10} className="mr-1 text-emerald-500" /> มีไฟล์แนบ
+                                      <Icon name="check-circle-fill" size={10} className="mr-1 text-emerald-500" /> มีไฟล์แนบ
                                     </span>
                                   )}
                                   {item.resumeBase64 && String(item.resumeBase64).startsWith('Error') && (
                                     <span className="text-[9px] text-red-600 font-bold flex items-center bg-red-50 px-2 py-0.5 rounded-md border border-red-200" title={item.resumeBase64}>
-                                      <Icons.AlertCircle size={10} className="mr-1" /> อัปโหลดล้มเหลว
+                                      <Icon name="exclamation-circle-fill" size={10} className="mr-1" /> อัปโหลดล้มเหลว
                                     </span>
                                   )}
                                 </div>
@@ -1510,7 +1546,7 @@
                                 <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-lg shadow-sm border" style={{backgroundColor:(STATUS_COLORS[item.status]||'#cbd5e1')+'15', color:STATUS_COLORS[item.status]||'#64748b', borderColor: (STATUS_COLORS[item.status]||'#cbd5e1')+'30'}}>
                                   {item.status}
                                 </span>
-                                <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md border"><Icons.UserPlus size={8} className="mr-1 inline"/>{item.ta}</p>
+                                <p className="text-[9px] font-bold text-slate-400 flex items-center bg-slate-50 px-1.5 py-0.5 rounded-md border"><Icon name="person-plus-fill" size={8} className="mr-1 inline"/>{item.ta}</p>
                               </div>
                             </>
                           )}
@@ -1525,17 +1561,22 @@
             {showSettings && (
               <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
                 <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95">
-                  <div className="px-6 py-5 border-b bg-slate-50 flex justify-between items-center"><h3 className="font-extrabold text-xl text-slate-800 flex items-center"><Icons.Settings className="mr-2.5 text-blue-600"/>ตั้งค่าระบบ</h3><button onClick={()=>setShowSettings(false)} className="text-slate-400 hover:text-slate-800 p-2"><Icons.X size={18}/></button></div>
+                  <div className="px-6 py-5 border-b bg-slate-50 flex justify-between items-center"><h3 className="font-extrabold text-xl text-slate-800 flex items-center"><Icon name="gear-fill" className="mr-2.5 text-blue-600"/>ตั้งค่าระบบ</h3><button onClick={()=>setShowSettings(false)} className="text-slate-400 hover:text-slate-800 p-2"><Icon name="x-lg" size={18}/></button></div>
                   <div className="p-6 space-y-6">
-                    <div className="bg-green-50 p-5 rounded-2xl border border-green-100"><h4 className="font-bold text-green-800 mb-3"><Icons.Send size={18} className="mr-2 inline"/>LINE API</h4><div className="space-y-3"><div><label className="text-[10px] font-bold text-green-700">Token</label><input type="text" value={lineToken} onChange={(e) => { setLineToken(e.target.value); localStorage.setItem('hr_line_token', e.target.value); }} className="w-full bg-white border rounded-xl px-4 py-2 mt-1 text-xs"/></div><div><label className="text-[10px] font-bold text-green-700">Target ID</label><input type="text" value={lineTargetId} onChange={(e) => { setLineTargetId(e.target.value); localStorage.setItem('hr_line_target_id', e.target.value); }} className="w-full bg-white border rounded-xl px-4 py-2 mt-1 text-xs"/></div></div></div>
-                    <div><h4 className="font-bold text-slate-800 mb-3"><Icons.Upload size={18} className="mr-2 inline text-slate-400"/> อัปเดต Master Data</h4><div className="space-y-3"><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">1. ไฟล์สาขา</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportCSV(e);setShowSettings(false)}}/></label><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">2. ไฟล์ตำแหน่ง</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportPositionCSV(e);setShowSettings(false)}}/></label><label className="flex justify-between border-2 border-dashed p-4 rounded-2xl cursor-pointer hover:bg-blue-50"><div><span className="text-sm font-bold block">3. ไฟล์ TA</span></div><input type="file" className="hidden" accept=".csv" onChange={e=>{handleImportTACSV(e);setShowSettings(false)}}/></label></div></div>
+                    <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200">
+                      <h4 className="font-bold text-amber-800 mb-2"><Icon name="database-fill" size={18} className="mr-2 inline"/>โหมดจำลองฐานข้อมูล (Mock DB)</h4>
+                      <p className="text-xs text-amber-700 mb-3">คุณกำลังอยู่ในโหมดจำลอง ระบบจะดึงข้อมูลจากไฟล์ CSV หากต้องการรีเซ็ตข้อมูลใหม่ทั้งหมด ให้กดปุ่มด้านล่าง</p>
+                      <button onClick={handleResetMockDB} className="bg-white border border-amber-300 text-amber-700 hover:bg-amber-100 hover:text-amber-800 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm w-full text-center">รีเซ็ตข้อมูลทั้งหมดและดึง CSV ใหม่</button>
+                    </div>
+
+                    <div className="bg-green-50 p-5 rounded-2xl border border-green-100 opacity-50"><h4 className="font-bold text-green-800 mb-3"><Icon name="send-fill" size={18} className="mr-2 inline"/>LINE API (ระงับในโหมดจำลอง)</h4><div className="space-y-3"><div><label className="text-[10px] font-bold text-green-700">Token</label><input type="text" disabled className="w-full bg-slate-100 border rounded-xl px-4 py-2 mt-1 text-xs"/></div><div><label className="text-[10px] font-bold text-green-700">Target ID</label><input type="text" disabled className="w-full bg-slate-100 border rounded-xl px-4 py-2 mt-1 text-xs"/></div></div></div>
                   </div>
                 </div>
               </div>
             )}
             
             {previewFile && (
-              <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in"><div className="bg-white p-2 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col relative shadow-2xl animate-in zoom-in-95"><div className="absolute -top-5 -right-5 flex space-x-3"><button onClick={() => handleDownloadFile(previewFile.originalUrl || previewFile.base64, previewFile.name)} className="bg-blue-600 text-white rounded-full p-3 shadow-lg"><Icons.Download size={22}/></button><button onClick={()=>setPreviewFile(null)} className="bg-white text-slate-800 rounded-full p-3 shadow-lg border"><Icons.X size={22}/></button></div>{previewFile.base64.startsWith('data:image/') || previewFile.base64.startsWith('data:application/pdf') || previewFile.base64.startsWith('http') ? <iframe src={previewFile.base64} className="w-full h-full rounded-2xl border bg-slate-50"/> : <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50"><Icons.FileText size={48} className="text-blue-500 mb-6"/><h3 className="font-extrabold text-2xl mb-8">{previewFile.name}</h3></div>}</div></div>
+              <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in"><div className="bg-white p-2 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col relative shadow-2xl animate-in zoom-in-95"><div className="absolute -top-5 -right-5 flex space-x-3"><button onClick={() => handleDownloadFile(previewFile.originalUrl || previewFile.base64, previewFile.name)} className="bg-blue-600 text-white rounded-full p-3 shadow-lg"><Icon name="download" size={22}/></button><button onClick={()=>setPreviewFile(null)} className="bg-white text-slate-800 rounded-full p-3 shadow-lg border"><Icon name="x-lg" size={22}/></button></div>{previewFile.base64.startsWith('data:image/') || previewFile.base64.startsWith('data:application/pdf') || previewFile.base64.startsWith('http') ? <iframe src={previewFile.base64} className="w-full h-full rounded-2xl border bg-slate-50"/> : <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50"><Icon name="file-earmark-text-fill" size={48} className="text-blue-500 mb-6"/><h3 className="font-extrabold text-2xl mb-8">{previewFile.name}</h3></div>}</div></div>
             )}
           </main>
         </div>
@@ -1548,7 +1589,7 @@
     } catch (error) {
       document.getElementById('root').innerHTML = `
         <div style="padding: 2rem; background: #fee2e2; color: #b91c1c; border-radius: 1rem; margin: 2rem; font-family: sans-serif;">
-            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาด</h2>
+            <h2 style="font-size: 1.5rem; font-weight: bold;">⚠️ เกิดข้อผิดพลาดในระบบ</h2>
             <p style="margin-top: 1rem; font-weight: bold;">รายละเอียด Error:</p>
             <p>${error.toString()}</p>
         </div>
